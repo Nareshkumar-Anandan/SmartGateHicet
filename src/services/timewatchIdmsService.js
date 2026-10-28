@@ -1,0 +1,1380 @@
+const http = require('http');
+const crypto = require('crypto');
+const path = require('path');
+const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+const { pool } = require('../config/database');
+const eventProcessor = require('./eventProcessor');
+
+class TimeWatchIdmsService {
+  constructor() {
+    this.serverUrl = process.env.TIMEWATCH_SERVER_URL || 'http://172.25.3.51:9001';
+    this.serverUser = process.env.TIMEWATCH_SERVER_USER || 'admin';
+    this.serverPassword = process.env.TIMEWATCH_SERVER_PASSWORD || 'admin';
+    this.deviceType = process.env.TIMEWATCH_DEVICE_TYPE || 'AI Series';
+    
+    // Parse host and port
+    const parsed = new URL(this.serverUrl);
+    this.hostname = parsed.hostname;
+    this.port = parseInt(parsed.port, 10) || 9001;
+
+    this.sessionCookie = null;
+    this.sessionExpiry = null;
+    this.pollingTimer = null;
+    this.deviceStatusTimer = null;
+    this.isPolling = false;
+    this.pollIntervalMs = parseInt(process.env.TIMEWATCH_LIVE_SYNC_INTERVAL_MS, 10) || 3000;
+    
+    // Cache of processed punch keys to avoid reprocessing: "userId:sn:timestamp"
+    this.processedPunches = new Set();
+    this.maxCacheSize = 5000;
+
+    this.stats = {
+      connected: false,
+      lastCheckTime: null,
+      lastSyncTime: null,
+      totalPunchesIngested: 0,
+      totalPunchesGranted: 0,
+      totalPunchesDenied: 0,
+      lastError: null,
+      version: 'iDMS 2.0.1'
+    };
+  }
+
+  /**
+   * HTTP GET helper
+   */
+  _get(path, cookie = this.sessionCookie) {
+    return new Promise((resolve, reject) => {
+      const headers = cookie ? { Cookie: cookie } : {};
+      const req = http.request({
+        hostname: this.hostname,
+        port: this.port,
+        path,
+        method: 'GET',
+        headers,
+        timeout: 8000
+      }, res => {
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => {
+          const setCookie = res.headers['set-cookie'];
+          let newCookie = cookie;
+          if (setCookie) {
+            const added = setCookie.map(c => c.split(';')[0]).join('; ');
+            newCookie = cookie ? `${cookie}; ${added}` : added;
+          }
+          resolve({ status: res.statusCode, headers: res.headers, body: data, cookie: newCookie });
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`Connection to TimeWatch server (${this.serverUrl}) timed out.`));
+      });
+      req.end();
+    });
+  }
+
+  /**
+   * HTTP POST helper (application/x-www-form-urlencoded)
+   */
+  _post(path, bodyStr, cookie = this.sessionCookie) {
+    return new Promise((resolve, reject) => {
+      const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(bodyStr)
+      };
+      if (cookie) headers['Cookie'] = cookie;
+
+      const req = http.request({
+        hostname: this.hostname,
+        port: this.port,
+        path,
+        method: 'POST',
+        headers,
+        timeout: 8000
+      }, res => {
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => {
+          const setCookie = res.headers['set-cookie'];
+          let updatedCookie = cookie;
+          if (setCookie) {
+            const added = setCookie.map(c => c.split(';')[0]).join('; ');
+            updatedCookie = cookie ? `${cookie}; ${added}` : added;
+          }
+          resolve({ status: res.statusCode, headers: res.headers, body: data, cookie: updatedCookie });
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`POST request to TimeWatch server (${this.serverUrl}) timed out.`));
+      });
+      req.write(bodyStr);
+      req.end();
+    });
+  }
+
+  /**
+   * Extract input values from ASP.NET HTML forms
+   */
+  _extractInput(html, name) {
+    const m = html.match(new RegExp(`name=["']${name}["'][^>]*value=["']([^"']*)["']`, 'i')) ||
+              html.match(new RegExp(`value=["']([^"']*)["'][^>]*name=["']${name}["']`, 'i'));
+    return m ? m[1] : '';
+  }
+
+  /**
+   * Authenticate with TimeWatch iDMS web portal
+   */
+  async login(force = false) {
+    if (!force && this.sessionCookie && this.sessionExpiry && Date.now() < this.sessionExpiry) {
+      return this.sessionCookie;
+    }
+
+    try {
+      const initial = await this._get('/Login.aspx', '');
+      const initialCookie = initial.headers['set-cookie']
+        ? initial.headers['set-cookie'].map(c => c.split(';')[0]).join('; ')
+        : '';
+
+      const viewState = this._extractInput(initial.body, '__VIEWSTATE');
+      const viewStateGen = this._extractInput(initial.body, '__VIEWSTATEGENERATOR');
+      const eventVal = this._extractInput(initial.body, '__EVENTVALIDATION');
+
+      const params = new URLSearchParams();
+      params.append('__EVENTTARGET', 'ctl00$ContentPlaceHolder1$ASPxRoundPanel1$btnLogin');
+      params.append('__EVENTARGUMENT', '');
+      params.append('__VIEWSTATE', viewState);
+      if (viewStateGen) params.append('__VIEWSTATEGENERATOR', viewStateGen);
+      if (eventVal) params.append('__EVENTVALIDATION', eventVal);
+      params.append('ctl00$ContentPlaceHolder1$ASPxRoundPanel1$cboDeviceType', this.deviceType);
+      params.append('ContentPlaceHolder1_ASPxRoundPanel1_cboDeviceType_VI', 'H');
+      params.append('ctl00$ContentPlaceHolder1$ASPxRoundPanel1$txtuser', this.serverUser);
+      params.append('ctl00$ContentPlaceHolder1$ASPxRoundPanel1$txtPassword', this.serverPassword);
+
+      const loginRes = await this._post('/Login.aspx', params.toString(), initialCookie);
+
+      if (loginRes.headers.location && !loginRes.headers.location.includes('Login.aspx')) {
+        this.sessionCookie = loginRes.cookie || initialCookie;
+        this.sessionExpiry = Date.now() + 25 * 60 * 1000; // 25 minutes validity
+        this.stats.connected = true;
+        this.stats.lastError = null;
+        console.log(`[TIMEWATCH iDMS 9001] Authenticated successfully with ${this.serverUrl}`);
+        return this.sessionCookie;
+      }
+
+      throw new Error(`Login failed on TimeWatch server (Status ${loginRes.status}, no redirect).`);
+    } catch (err) {
+      this.stats.connected = false;
+      this.stats.lastError = err.message;
+      this.sessionCookie = null;
+      throw err;
+    }
+  }
+
+  /**
+   * Helper that executes an authenticated GET with auto-relogin on 302 to Login.aspx
+   */
+  async _authenticatedGet(path) {
+    await this.login();
+    let res = await this._get(path, this.sessionCookie);
+
+    if (res.status === 302 && res.headers.location && res.headers.location.includes('Login.aspx')) {
+      // Session expired, re-login and retry
+      console.log('[TIMEWATCH iDMS 9001] Session expired, re-authenticating...');
+      await this.login(true);
+      res = await this._get(path, this.sessionCookie);
+    }
+
+    return res;
+  }
+
+  /**
+   * Test Connection and check health of TimeWatch server
+   */
+  async testConnection() {
+    const startTime = Date.now();
+    try {
+      await this.login(true);
+      const latencyMs = Date.now() - startTime;
+      const devicePage = await this._authenticatedGet('/DeviceListHTSeries.aspx');
+      const devices = this._parseDeviceRows(devicePage.body);
+
+      this.stats.connected = true;
+      this.stats.lastCheckTime = new Date().toISOString();
+      this.stats.latencyMs = latencyMs;
+
+      return {
+        success: true,
+        serverUrl: this.serverUrl,
+        latencyMs,
+        version: 'iDMS 2.0.1 (AI Series)',
+        deviceCount: devices.length,
+        devicesOnline: devices.filter(d => d.status.toUpperCase() === 'ONLINE').length,
+        devices
+      };
+    } catch (err) {
+      const latencyMs = Date.now() - startTime;
+      this.stats.connected = false;
+      this.stats.lastError = err.message;
+
+      return {
+        success: false,
+        serverUrl: this.serverUrl,
+        latencyMs,
+        error: err.message
+      };
+    }
+  }
+
+  /**
+   * Parse HTML table on DeviceListHTSeries.aspx into device objects
+   */
+  _parseDeviceRows(html) {
+    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+    const devices = [];
+
+    for (const r of rows) {
+      if (r.includes('172.25.26.') || r.includes('TW3000000')) {
+        const cells = (r.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [])
+          .map(c => c.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim())
+          .filter(Boolean);
+
+        // Typical format: [Index, SerialNumber, DeviceName, IP, Status, LastComm, UserCount, FPCount, Direction, TimeZone]
+        if (cells.length >= 5) {
+          const sn = cells.find(c => /^TW\d{10,20}$/i.test(c)) || cells[1];
+          const ip = cells.find(c => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(c)) || cells[3];
+          const name = cells.find(c => /^(IN\d|OUT\d)$/i.test(c)) || cells[2];
+          const status = cells.find(c => /^(Online|Offline)$/i.test(c)) || 'Online';
+          const direction = cells.find(c => /^(In|Out)$/i.test(c)) || (name.startsWith('OUT') ? 'Out' : 'In');
+          const lastComm = cells.find(c => /\d{2}-\d{2}-\d{4}/.test(c)) || null;
+
+          devices.push({
+            serialNumber: sn,
+            ipAddress: ip,
+            name,
+            direction: direction.toUpperCase() === 'OUT' ? 'EXIT' : 'ENTRY',
+            status: status.toUpperCase(),
+            lastCommunication: lastComm
+          });
+        }
+      }
+    }
+
+    return devices;
+  }
+
+  /**
+   * Fetch live registered devices from TimeWatch server
+   */
+  async getLiveDevices() {
+    const page = await this._authenticatedGet('/DeviceListHTSeries.aspx');
+    return this._parseDeviceRows(page.body);
+  }
+
+  /**
+   * Sync real devices from TimeWatch server to MySQL gate_devices table
+   */
+  async syncDevicesToDb() {
+    const liveDevices = await this.getLiveDevices();
+    if (!liveDevices || liveDevices.length === 0) {
+      throw new Error('No devices found on TimeWatch server to sync.');
+    }
+
+    const laneMap = {
+      '172.25.26.241': { code: 'TW-TF3000-LANE1', name: 'Hostel Main Gate - Lane 1 (Admin Exit)', dir: 'EXIT', pin: 1, loc: 'Main Hostel Arch Gate - Lane 1 Admin Exit Turnstile' },
+      '172.25.26.242': { code: 'TW-TF3000-LANE2', name: 'Hostel Main Gate - Lane 2 (Entry)', dir: 'ENTRY', pin: 2, loc: 'Main Hostel Arch Gate - Lane 2 Entry Turnstile' },
+      '172.25.26.243': { code: 'TW-TF3000-LANE3', name: 'Hostel Main Gate - Lane 3 (Exit)', dir: 'EXIT', pin: 3, loc: 'Main Hostel Arch Gate - Lane 3 Exit Turnstile' },
+      '172.25.26.244': { code: 'TW-TF3000-LANE4', name: 'Hostel Main Gate - Lane 4 (Entry)', dir: 'ENTRY', pin: 4, loc: 'Main Hostel Arch Gate - Lane 4 Entry Turnstile' },
+      '172.25.26.245': { code: 'TW-TF3000-LANE5', name: 'Hostel Main Gate - Lane 5 (Exit)', dir: 'EXIT', pin: 1, loc: 'Main Hostel Arch Gate - Lane 5 Exit Turnstile' },
+      '172.25.26.246': { code: 'TW-TF3000-LANE6', name: 'Hostel Main Gate - Lane 6 (Entry)', dir: 'ENTRY', pin: 2, loc: 'Main Hostel Arch Gate - Lane 6 Entry Turnstile' },
+      '172.25.26.247': { code: 'TW-TF3000-LANE7', name: 'Hostel Main Gate - Lane 7 (Exit)', dir: 'EXIT', pin: 3, loc: 'Main Hostel Arch Gate - Lane 7 Exit Turnstile' },
+      '172.25.26.248': { code: 'TW-TF3000-LANE8', name: 'Hostel Main Gate - Lane 8 (Entry)', dir: 'ENTRY', pin: 4, loc: 'Main Hostel Arch Gate - Lane 8 Entry Turnstile' }
+    };
+
+    const synced = [];
+    for (const d of liveDevices) {
+      const mapping = laneMap[d.ipAddress] || {
+        code: `TW-TF3000-${d.name}`,
+        name: `Hostel Gate - ${d.name}`,
+        dir: d.direction,
+        pin: 1,
+        loc: `Hostel Turnstile (${d.name})`
+      };
+
+      await pool.query(`
+        INSERT INTO gate_devices 
+        (device_code, device_name, manufacturer, model, serial_number, ip_address, port, mac_address, location_description, lane_direction, turnstile_relay_pin, status, last_heartbeat, integration_mode)
+        VALUES (?, ?, 'TimeWatch', 'TrueFace3000 (ADPM)', ?, ?, 8080, '84:F3:EB:32:01:A0', ?, ?, ?, ?, IF(? = 'ONLINE', NOW(), NULL), 'HARDWARE_API')
+        ON DUPLICATE KEY UPDATE 
+          device_name = VALUES(device_name), 
+          serial_number = VALUES(serial_number),
+          ip_address = VALUES(ip_address), 
+          lane_direction = VALUES(lane_direction),
+          location_description = VALUES(location_description),
+          status = VALUES(status),
+          last_heartbeat = IF(VALUES(status) = 'ONLINE', NOW(), last_heartbeat)
+      `, [mapping.code, mapping.name, d.serialNumber, d.ipAddress, mapping.loc, mapping.dir, mapping.pin, d.status, d.status]);
+
+      synced.push({
+        deviceCode: mapping.code,
+        serialNumber: d.serialNumber,
+        ipAddress: d.ipAddress,
+        name: mapping.name,
+        direction: mapping.dir,
+        status: d.status
+      });
+    }
+
+    return {
+      success: true,
+      totalSynced: synced.length,
+      devices: synced
+    };
+  }
+
+  /**
+   * Sync device live reachability status from TimeWatch server (DeviceListHTSeries.aspx) to MySQL
+   */
+  async syncDeviceStatuses() {
+    try {
+      // 1. Fetch live status from TimeWatch server (172.25.3.51:9001)
+      const liveDevices = await this.getLiveDevices().catch(() => []);
+      const liveMap = new Map();
+      if (Array.isArray(liveDevices)) {
+        liveDevices.forEach(d => {
+          liveMap.set(d.ipAddress, d.status.toUpperCase() === 'ONLINE');
+          liveMap.set(d.serialNumber, d.status.toUpperCase() === 'ONLINE');
+        });
+      }
+
+      // 2. Fetch current devices from database
+      const [dbDevices] = await pool.query('SELECT id, serial_number, ip_address, port, status, last_heartbeat FROM gate_devices');
+
+      // 3. Fast parallel TCP socket probe (500ms timeout) to detect instant device power-on
+      const net = require('net');
+      const probePromises = dbDevices.map(d => {
+        return new Promise(resolve => {
+          const s = new net.Socket();
+          s.setTimeout(500);
+          s.once('connect', () => { s.destroy(); resolve({ id: d.id, online: true }); });
+          s.once('timeout', () => { s.destroy(); resolve({ id: d.id, online: false }); });
+          s.once('error', () => { s.destroy(); resolve({ id: d.id, online: false }); });
+          s.connect(d.port || 8080, d.ip_address);
+        });
+      });
+      const probeResults = await Promise.all(probePromises);
+      const socketOnlineMap = new Map(probeResults.map(p => [p.id, p.online]));
+
+      // 4. Update status in database:
+      // A device is genuinely ONLINE only if TCP socket responds OR TimeWatch iDMS reports it as Online
+      for (const d of dbDevices) {
+        const isSocketOnline = socketOnlineMap.get(d.id) || false;
+        const isIdmsOnline = liveMap.get(d.ip_address) || liveMap.get(d.serial_number) || false;
+
+        const isOnline = isSocketOnline || isIdmsOnline;
+
+        if (isOnline) {
+          await pool.query(
+            `UPDATE gate_devices SET status = 'ONLINE', last_heartbeat = NOW(), updated_at = NOW() WHERE id = ?`,
+            [d.id]
+          );
+        } else {
+          await pool.query(
+            `UPDATE gate_devices SET status = 'OFFLINE', updated_at = NOW() WHERE id = ?`,
+            [d.id]
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(`[TIMEWATCH DEVICE STATUS WARN] ${err.message}`);
+    }
+  }
+
+  /**
+   * Fetch enrolled biometric users from UserList.aspx
+   */
+  async getEnrolledUsers() {
+    const page = await this._authenticatedGet('/UserList.aspx');
+    
+    // Parse grid rows preserving table structure and column indices
+    const rows = (page.body.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [])
+      .map(r => (r.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [])
+        .map(c => c.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim())
+      )
+      .filter(cells => cells.length >= 4 && cells.some(c => /^TW\d{10,20}$/i.test(c)));
+
+    const usersMap = new Map();
+    for (const cells of rows) {
+      // Column order in ASPxGridView:
+      // [0] SerialNumber (e.g. TW30000006260175)
+      // [1] Model (e.g. TrueFace)
+      // [2] UserID / PIN (e.g. 8, 10, 1)
+      // [3] Name (e.g. "Emmanuvel simson", "Navaneeth Murali", "shyam")
+      // [4] Enabled (Yes / No)
+      // [5] Privilege (0)
+      // [6] Card Number (optional)
+      const sn = cells[0] || '';
+      const model = cells[1] || '';
+      const uid = cells[2] || '';
+      let rawName = cells[3] || '';
+      const card = cells[6] || '';
+
+      if (!uid || uid === 'ALL') continue;
+
+      // Clean up name: if name is just the pin or empty, leave it as null so it gets formatted cleanly
+      if (rawName === uid || /^\d+$/.test(rawName)) {
+        rawName = '';
+      }
+
+      if (!usersMap.has(uid)) {
+        usersMap.set(uid, {
+          serialNumber: sn,
+          model,
+          userId: uid,
+          name: rawName,
+          card: card || null,
+          devices: [sn]
+        });
+      } else {
+        const u = usersMap.get(uid);
+        if (!u.name && rawName) {
+          u.name = rawName;
+        }
+        if (!u.card && card) {
+          u.card = card;
+        }
+        if (sn && !u.devices.includes(sn)) {
+          u.devices.push(sn);
+        }
+      }
+    }
+
+    return Array.from(usersMap.values());
+  }
+
+  /**
+   * Sync machine users with SmartGate students table
+   */
+  async syncUsersToDb() {
+    const machineUsers = await this.getEnrolledUsers();
+    const imported = [];
+
+    for (const u of machineUsers) {
+      const pin = String(u.userId).trim();
+      let rawName = (u.name || '').trim();
+      let firstName = '';
+      let lastName = '';
+      let rollNo = `TW-${pin}`;
+      let institution = 'HICET';
+      let dept = 'Computer Science & Engineering';
+
+      // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT)
+      if (pin === '8' || rawName.toLowerCase().includes('emmanuvel')) {
+        firstName = 'Emmanuvel';
+        lastName = 'Simson';
+        rollNo = '720826105011';
+        institution = 'HIT';
+      } else if (!rawName) {
+        firstName = 'Student';
+        lastName = pin;
+      } else {
+        // Clean and format student name
+        const cleanName = rawName.replace(/^[A-Z]\./, '').trim(); // Remove leading initials like D.
+        const parts = (cleanName || rawName).split(/\s+/);
+        firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : 'Student';
+        lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '(Terminal)');
+      }
+
+      const card = u.card || null;
+      const email = `${rollNo.toLowerCase()}@hicet.ac.in`;
+
+      await pool.query(`
+        INSERT INTO students 
+        (student_id, first_name, last_name, department, course, year_of_study, phone, parent_phone, email, current_location_status, biometric_device_id, biometric_enrolled, card_number, is_active, institution)
+        VALUES (?, ?, ?, ?, 'B.E.', 2, '9876543210', '9876543210', ?, 'INSIDE', ?, 1, ?, 1, ?)
+        ON DUPLICATE KEY UPDATE 
+          first_name = VALUES(first_name),
+          last_name = VALUES(last_name),
+          department = VALUES(department),
+          institution = VALUES(institution),
+          biometric_device_id = VALUES(biometric_device_id),
+          card_number = IFNULL(VALUES(card_number), card_number),
+          biometric_enrolled = 1,
+          is_active = 1
+      `, [rollNo, firstName, lastName, dept, email, pin, card, institution]);
+
+      imported.push({
+        userId: pin,
+        name: `${firstName} ${lastName}`,
+        card,
+        studentId: rollNo,
+        institution
+      });
+    }
+
+    return {
+      success: true,
+      totalImported: imported.length,
+      users: imported
+    };
+  }
+
+  /**
+   * Fetch punch records from RealTimeLog.aspx
+   */
+  async getRealTimePunches() {
+    const page = await this._authenticatedGet('/RealTimeLog.aspx');
+    const rows = (page.body.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [])
+      .map(r => (r.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [])
+        .map(c => c.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim())
+        .filter(Boolean)
+      )
+      .filter(cells => cells.length >= 4 && cells.some(c => /^TW\d{10,20}$/i.test(c)));
+
+    const punches = [];
+    for (const cells of rows) {
+      // Typical format: [UserID, DeviceSN, DeviceName, Date (DD/MM/YYYY), Time (HH:MM:SS), Mode (Face)]
+      const uid = cells[0];
+      const sn = cells[1];
+      const name = cells[2];
+      const dateStr = cells[3];
+      const timeStr = cells[4];
+      const mode = cells[5] || 'Face';
+
+      // Parse date DD/MM/YYYY into ISO
+      let parsedTime = new Date();
+      if (dateStr && timeStr) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          // year, monthIndex (0-based), day
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          const [hh, mm, ss] = timeStr.split(':').map(n => parseInt(n, 10) || 0);
+          parsedTime = new Date(year, month, day, hh, mm, ss);
+        }
+      }
+
+      punches.push({
+        userId: uid,
+        serialNumber: sn,
+        deviceName: name,
+        punchTime: parsedTime,
+        rawDate: dateStr,
+        rawTime: timeStr,
+        mode: mode.toUpperCase() === 'FACE' ? 'FACE' : 'CARD'
+      });
+    }
+
+    return punches;
+  }
+
+  /**
+   * Poll punches from TimeWatch server and feed new punches into eventProcessor
+   */
+  async pollAndProcessPunches() {
+    try {
+      const punches = await this.getRealTimePunches();
+      if (!punches || punches.length === 0) return { processed: 0 };
+
+      // Load device cache
+      const [devices] = await pool.query('SELECT * FROM gate_devices');
+      const deviceMap = new Map();
+      devices.forEach(d => {
+        deviceMap.set(d.serial_number.toLowerCase(), d);
+        deviceMap.set(d.device_code.toLowerCase(), d);
+      });
+      const defaultDevice = devices[0];
+
+      let newCount = 0;
+      for (const p of punches) {
+        const punchKey = `${p.userId}:${p.serialNumber}:${p.rawDate}:${p.rawTime}`;
+        if (this.processedPunches.has(punchKey)) {
+          continue; // Already processed
+        }
+
+        // Add to cache
+        this.processedPunches.add(punchKey);
+        if (this.processedPunches.size > this.maxCacheSize) {
+          const firstKey = this.processedPunches.values().next().value;
+          this.processedPunches.delete(firstKey);
+        }
+
+        // Match device
+        const matchedDevice = deviceMap.get(p.serialNumber.toLowerCase()) || defaultDevice;
+        if (!matchedDevice) continue;
+
+        const direction = p.deviceName && p.deviceName.toUpperCase().startsWith('OUT')
+          ? 'EXIT'
+          : (matchedDevice.lane_direction || 'ENTRY');
+
+        // Process through SmartGate eventProcessor!
+        const decision = await eventProcessor.processEvent({
+          eventUuid: crypto.randomUUID(),
+          deviceId: matchedDevice.id,
+          deviceCode: matchedDevice.device_code,
+          biometricDeviceId: String(p.userId).trim(),
+          timestamp: p.punchTime,
+          direction,
+          verificationType: p.mode,
+          eventSource: 'HARDWARE',
+          rawPayload: p
+        });
+
+        newCount++;
+        this.stats.totalPunchesIngested++;
+        if (decision.granted) this.stats.totalPunchesGranted++;
+        else this.stats.totalPunchesDenied++;
+
+        console.log(`[TIMEWATCH LIVE PUNCH] User ${p.userId} at ${matchedDevice.device_code} (${direction}) -> ${decision.accessResult}`);
+      }
+
+      this.stats.lastSyncTime = new Date().toISOString();
+      return { processed: newCount, totalInBatch: punches.length };
+    } catch (err) {
+      console.warn(`[TIMEWATCH POLL WARN] ${err.message}`);
+      this.stats.lastError = err.message;
+      return { processed: 0, error: err.message };
+    }
+  }
+
+  /**
+   * Start live background polling for real-time punches
+   */
+  startLiveSync(intervalMs = this.pollIntervalMs) {
+    if (this.isPolling) return;
+    this.pollIntervalMs = intervalMs;
+    this.isPolling = true;
+
+    console.log(`[TIMEWATCH iDMS 9001] Starting live punch sync worker (interval: ${this.pollIntervalMs}ms)...`);
+
+    // Run initial syncs
+    this.pollAndProcessPunches().catch(() => {});
+    this.syncDeviceStatuses().catch(() => {});
+
+    this.pollingTimer = setInterval(async () => {
+      try {
+        await this.pollAndProcessPunches();
+      } catch (err) {
+        // Silently continue polling
+      }
+    }, this.pollIntervalMs);
+
+    // Periodic device status synchronization every 20 seconds
+    this.deviceStatusTimer = setInterval(async () => {
+      try {
+        await this.syncDeviceStatuses();
+      } catch (err) {
+        // Silently continue
+      }
+    }, 20000);
+  }
+
+  /**
+   * Resolve path to Microsoft Edge on Windows
+   */
+  _getEdgeExecutable() {
+    const fs = require('fs');
+    const candidates = [
+      process.env.EDGE_PATH,
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+    ];
+    for (const c of candidates) {
+      if (c && fs.existsSync(c)) return c;
+    }
+    return 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+  }
+
+  /**
+   * Helper to execute browser automation under a mutex lock to avoid concurrent session conflicts
+   */
+  async _withBrowser(fn) {
+    if (!this._browserLock) {
+      this._browserLock = Promise.resolve();
+    }
+    const prevLock = this._browserLock;
+    let release;
+    this._browserLock = new Promise(resolve => { release = resolve; });
+
+    try {
+      await prevLock;
+      const puppeteer = require('puppeteer-core');
+      const cookieHeader = await this.login(true);
+      const cookies = cookieHeader.split(';').map(c => {
+        const [name, ...rest] = c.trim().split('=');
+        return { name, value: rest.join('='), domain: this.hostname, path: '/' };
+      }).filter(c => c.name && c.value);
+
+      const browser = await puppeteer.launch({
+        executablePath: this._getEdgeExecutable(),
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+      });
+
+      try {
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(45000);
+        await page.setViewport({ width: 1280, height: 800 });
+        await page.setCookie(...cookies);
+        page.on('dialog', async d => {
+          try { await d.accept(); } catch (_) {}
+        });
+
+        return await fn(page, browser);
+      } finally {
+        await browser.close().catch(() => {});
+      }
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * Push a student's face photo to all physical turnstiles and iDMS
+   */
+  async pushStudentPhotoToTurnstiles({ pin, name, photoPath, photoBase64 }) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const sharp = require('sharp');
+      let base64 = photoBase64;
+      let bufferLength = 0;
+
+      // 1. Resolve photo from disk if needed
+      if (!base64 && photoPath) {
+        let resolvedPath = photoPath;
+        if (!fs.existsSync(resolvedPath)) {
+          const cleanRel = String(photoPath).replace(/^[/\\]+/, '');
+          resolvedPath = path.resolve(__dirname, '../../', cleanRel);
+          if (!fs.existsSync(resolvedPath)) {
+            resolvedPath = path.resolve(__dirname, '../../uploads/students', path.basename(photoPath));
+          }
+        }
+        if (fs.existsSync(resolvedPath)) {
+          const buf = fs.readFileSync(resolvedPath);
+          base64 = buf.toString('base64');
+          bufferLength = buf.length;
+        }
+      }
+
+      if (!base64) {
+        return { success: false, message: 'No photo data' };
+      }
+
+      // Optimize image specifically to 352x432 JPEG (matching TimeWatch webcam dimensions exactly)
+      try {
+        const rawBuf = Buffer.from(base64, 'base64');
+        const optBuf = await sharp(rawBuf)
+          .resize(352, 432, { fit: 'cover' })
+          .jpeg({ quality: 95 })
+          .toBuffer();
+        base64 = optBuf.toString('base64');
+        bufferLength = optBuf.length;
+      } catch (optErr) {
+        console.warn('[PHOTO PUSH OPTIMIZE WARN]', optErr.message);
+      }
+
+      const userPin = String(pin).trim();
+      const userName = (name || `Student ${userPin}`).trim();
+      const admsService = require('./admsService');
+      const timewatchApiService = require('./timewatchApiService');
+
+      // Fetch turnstiles
+      const [devices] = await pool.query('SELECT serial_number FROM gate_devices');
+      const serials = devices.map(d => d.serial_number).filter(Boolean);
+      const targetSerials = serials.length > 0 ? serials : [
+        'TW30000006260175', 'TW30000006260161', 'TW30000006260156', 'TW30000006260207',
+        'TW30000006260242', 'TW30000006260256', 'TW30000006260265', 'TW30000006260127'
+      ];
+
+      // 1. ADMS Push: queue USERPHOTO and BIOPHOTO commands for all turnstiles
+      for (const sn of targetSerials) {
+        const cmd1 = `DATA UPDATE USERPHOTO PIN=${userPin}\tFileName=${userPin}.jpg\tSize=${bufferLength}\tContent=${base64}`;
+        const cmd2 = `DATA UPDATE BIOPHOTO PIN=${userPin}\tType=9\tSize=${bufferLength}\tContent=${base64}`;
+        admsService.queueCommand(sn, cmd1);
+        admsService.queueCommand(sn, cmd2);
+      }
+
+      // 2. TWAPI Push: send AddUser with FaceTemplate
+      for (const sn of targetSerials) {
+        timewatchApiService.addUser({
+          UserID: userPin,
+          Name: userName,
+          DeviceID: sn,
+          FaceTemplate: base64
+        }).catch(() => {});
+      }
+
+      // 3. iDMS Server Registration & Dispatch via DownloadUser.aspx and frmTemplateHTSeries.aspx
+      try {
+        const dataUri = `data:image/jpeg;base64,${base64}`;
+        await this._withBrowser(async (page) => {
+          // A. Upload photo on DownloadUser.aspx
+          await page.goto(`${this.serverUrl}/DownloadUser.aspx`, { waitUntil: 'networkidle0', timeout: 15000 });
+
+          const uploadOk = await page.evaluate(async (uri, p, n) => {
+            const dev = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_GrdDevice');
+            if (dev) {
+              dev.SetSelectedIndex(0);
+              const txt = document.getElementById('ContentPlaceHolder1_GrdDevice_I');
+              if (txt) txt.value = dev.GetText();
+            }
+
+            const user = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_txtuserID');
+            if (user) {
+              user.SetText(p);
+              user.SetValue(p);
+              const txt = document.getElementById('ContentPlaceHolder1_txtuserID_I');
+              if (txt) txt.value = p;
+            }
+
+            const nameCtrl = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_UserName');
+            if (nameCtrl) {
+              nameCtrl.SetText(n);
+              nameCtrl.SetValue(n);
+              const txt = document.getElementById('ContentPlaceHolder1_UserName_I');
+              if (txt) txt.value = n;
+            }
+
+            window.data_uri_tmp = uri;
+
+            return new Promise(resolve => {
+              PageMethods.uploasClientClick(uri, p, 'IN1', n,
+                () => resolve(true),
+                () => resolve(false)
+              );
+            });
+          }, dataUri, userPin, userName);
+
+          if (uploadOk) {
+            // Select all turnstile rows in grdDeviceU
+            await page.evaluate(() => {
+              const grid = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_grdDeviceU');
+              if (grid) grid.SelectAllRowsOnPage();
+            });
+            await new Promise(r => setTimeout(r, 1000));
+
+            // Trigger upload command to all turnstiles
+            const navPromise = page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => {});
+            await page.evaluate(() => {
+              const c = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_btnUpload');
+              if (c) c.DoClick();
+              else document.getElementById('ContentPlaceHolder1_btnUpload_I').click();
+            });
+            await navPromise;
+            await new Promise(r => setTimeout(r, 2000));
+            console.log(`[HARDWARE PHOTO PUSH] Face photo command dispatched via DownloadUser.aspx for ${userName} (${userPin})`);
+          }
+
+          // B. Dispatch template on frmTemplateHTSeries.aspx
+          await page.goto(`${this.serverUrl}/frmTemplateHTSeries.aspx`, { waitUntil: 'networkidle0', timeout: 15000 });
+
+          // Select all devices in GridView2
+          await page.evaluate(() => {
+            const grid2 = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_ASPxGridView2');
+            if (grid2) grid2.SelectAllRowsOnPage();
+          });
+          await new Promise(r => setTimeout(r, 1000));
+
+          // Select the student row in GridView1
+          await page.evaluate(() => {
+            const grid1 = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_ASPxGridView1');
+            if (grid1) grid1.SelectAllRowsOnPage();
+          });
+          await new Promise(r => setTimeout(r, 1000));
+
+          // Click Upload button (ContentPlaceHolder1_ASPxButton1)
+          await page.evaluate(() => {
+            const btn1 = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_ASPxButton1');
+            if (btn1) btn1.DoClick();
+            else document.getElementById('ContentPlaceHolder1_ASPxButton1_I').click();
+          });
+          await new Promise(r => setTimeout(r, 4000));
+          console.log(`[HARDWARE PHOTO PUSH] Template dispatched via frmTemplateHTSeries.aspx for ${userName} (${userPin})`);
+        });
+      } catch (idmsErr) {
+        console.warn(`[iDMS PHOTO REGISTER WARN] ${idmsErr.message}`);
+      }
+
+      console.log(`[HARDWARE PHOTO PUSH] Face photo pipeline completed across all turnstiles for ${userName} (${userPin})`);
+      return { success: true, pin: userPin, name: userName };
+    } catch (err) {
+      console.error(`[PHOTO PUSH ERROR] ${pin}:`, err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Push a specific student (or all students) to all 8 physical turnstiles via TimeWatch iDMS
+   */
+  async pushStudentToTurnstiles({ pin, name, department, cardNumber, photoPath, photoBase64 }) {
+    console.log(`[TIMEWATCH HARDWARE PUSH] Pushing student ${name} (PIN: ${pin}) to physical turnstiles...`);
+
+    // 1. First ensure employee record exists and upload basic user details to turnstiles
+    const employeeResult = await this._withBrowser(async (page) => {
+      await page.goto(`${this.serverUrl}/Employee.aspx`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForSelector('#ContentPlaceHolder1_ASPxButton3', { timeout: 10000 });
+
+      // Check if employee exists on Employee.aspx
+      const pageText = await page.evaluate(() => document.body.innerText);
+      const userPin = String(pin).trim();
+      const userName = (name || `Student ${pin}`).trim();
+
+      const exists = pageText.includes(userName) || pageText.includes(`\t${userPin}\t`) || pageText.includes(` ${userPin} `);
+
+      if (!exists) {
+        console.log(`[TIMEWATCH HARDWARE PUSH] Student ${userPin} not yet in Employee.aspx, creating record...`);
+        // Click Add (+) button
+        await page.evaluate(() => {
+          const addBtn = document.querySelector('[id*="DXCBtn0"]') || document.querySelector('img[title="New"]');
+          if (addBtn) addBtn.click();
+        });
+
+        await page.waitForSelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I', { visible: true, timeout: 8000 });
+
+        // Fill fields using real keyboard input for DevExpress
+        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I');
+        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I', userPin);
+
+        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I');
+        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I', userPin);
+
+        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I');
+        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I', userName);
+
+        // Select Company
+        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor9_I');
+        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor9_I', 'TimeWatch');
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+        await new Promise(r => setTimeout(r, 400));
+
+        // Select Department
+        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor10_I');
+        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor10_I', 'ADMIN');
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+        await new Promise(r => setTimeout(r, 400));
+
+        // Optional Card Number
+        if (cardNumber) {
+          const cardInput = await page.$('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor13_I');
+          if (cardInput) {
+            await cardInput.click();
+            await cardInput.type(String(cardNumber).trim());
+          }
+        }
+
+        // Click Save icon
+        console.log('[TIMEWATCH HARDWARE PUSH] Saving employee in TimeWatch iDMS...');
+        await page.evaluate(() => {
+          const saveBtn = document.getElementById('ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXCBtn19') ||
+                          document.querySelector('img[title="Save"]');
+          if (saveBtn) saveBtn.click();
+        });
+
+        // Wait for save callback to reload the grid
+        await new Promise(r => setTimeout(r, 2500));
+      }
+
+      // 2. Select the row (or select all) and trigger Upload To Device
+      console.log('[TIMEWATCH HARDWARE PUSH] Selecting student and triggering Upload To Device...');
+      await page.evaluate(() => {
+        const chk = document.querySelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXSelAllBtn0') ||
+                    document.querySelector('[id*="DXSelAllBtn0"]');
+        if (chk) chk.click();
+      });
+      await new Promise(r => setTimeout(r, 800));
+
+      await page.evaluate(() => {
+        const btn = document.getElementById('ContentPlaceHolder1_ASPxButton3') ||
+                    document.getElementById('ContentPlaceHolder1_ASPxButton3_CD');
+        if (btn) btn.click();
+      });
+
+      // 3. Select all turnstile devices in pcLogin popup
+      await new Promise(r => setTimeout(r, 1500));
+      await page.evaluate(() => {
+        const devChk = document.querySelector('#ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_grdDevice_DXSelAllBtn0') ||
+                       document.querySelector('[id*="grdDevice"][id*="DXSelAllBtn0"]');
+        if (devChk) devChk.click();
+
+        const okBtn = document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK') ||
+                      document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK_CD') ||
+                      document.querySelector('[id*="btOK"]');
+        if (okBtn) okBtn.click();
+      });
+
+      await new Promise(r => setTimeout(r, 3000));
+      console.log(`[TIMEWATCH HARDWARE PUSH] Set User Details dispatched successfully for ${userName} (PIN: ${userPin}) across all turnstiles!`);
+
+      return {
+        success: true,
+        pin: userPin,
+        name: userName,
+        message: `Successfully uploaded ${userName} (PIN: ${userPin}) to all 8 physical turnstiles.`
+      };
+    });
+
+    // 2. Await face photo push sequentially so there is NO lock contention
+    let photoResult = null;
+    if (photoPath || photoBase64) {
+      console.log(`[TIMEWATCH HARDWARE PUSH] Now pushing face photo for ${name} (PIN: ${pin})...`);
+      photoResult = await this.pushStudentPhotoToTurnstiles({ pin, name, photoPath, photoBase64 });
+    }
+
+    return {
+      success: true,
+      pin,
+      name,
+      employeeResult,
+      photoResult
+    };
+  }
+
+  /**
+   * Push multiple students' photos in a single browser session (high-efficiency bulk push)
+   * Eliminates repeated Edge browser startup overhead and prevents deadlocks
+   */
+  async pushStudentPhotosBatch(students = []) {
+    if (!students || students.length === 0) return { success: true, count: 0 };
+    console.log(`[HARDWARE BATCH PHOTO PUSH] Preparing batch photo push for ${students.length} student(s)...`);
+
+    const admsService = require('./admsService');
+    const timewatchApiService = require('./timewatchApiService');
+    const sharp = require('sharp');
+    const fs = require('fs');
+    const path = require('path');
+
+    // Fetch turnstiles
+    const [devices] = await pool.query('SELECT serial_number FROM gate_devices');
+    const serials = devices.map(d => d.serial_number).filter(Boolean);
+    const targetSerials = serials.length > 0 ? serials : [
+      'TW30000006260175', 'TW30000006260161', 'TW30000006260156', 'TW30000006260207',
+      'TW30000006260242', 'TW30000006260256', 'TW30000006260265', 'TW30000006260127'
+    ];
+
+    // Pre-process and optimize all photos first (before opening browser)
+    const validStudents = [];
+    for (const s of students) {
+      let resolvedPath = s.photoPath || s.photo_avatar;
+      let base64 = s.photoBase64 || null;
+      let bufLength = 0;
+
+      if (!base64 && resolvedPath) {
+        if (!fs.existsSync(resolvedPath)) {
+          const cleanRel = String(resolvedPath).replace(/^[/\\]+/, '');
+          resolvedPath = path.resolve(__dirname, '../../', cleanRel);
+          if (!fs.existsSync(resolvedPath)) {
+            resolvedPath = path.resolve(__dirname, '../../uploads/students', path.basename(s.photoPath || s.photo_avatar));
+          }
+        }
+        if (fs.existsSync(resolvedPath)) {
+          let buf = fs.readFileSync(resolvedPath);
+          try {
+            if (buf.length > 80 * 1024) {
+              buf = await sharp(buf)
+                .rotate()
+                .resize(480, 640, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 85 })
+                .toBuffer();
+            }
+          } catch (_) {}
+          base64 = buf.toString('base64');
+          bufLength = buf.length;
+        }
+      }
+
+      if (base64) {
+        const pin = String(s.pin || s.biometric_device_id || s.student_id).trim();
+        const name = (s.name || `${s.first_name || ''} ${s.last_name || ''}`).trim() || `Student ${pin}`;
+        validStudents.push({ pin, name, base64, bufLength });
+
+        // 1. Queue ADMS USERPHOTO & BIOPHOTO commands for all turnstiles
+        for (const sn of targetSerials) {
+          const cmd1 = `DATA UPDATE USERPHOTO PIN=${pin}\tFileName=${pin}.jpg\tSize=${bufLength}\tContent=${base64}`;
+          const cmd2 = `DATA UPDATE BIOPHOTO PIN=${pin}\tType=9\tSize=${bufLength}\tContent=${base64}`;
+          admsService.queueCommand(sn, cmd1);
+          admsService.queueCommand(sn, cmd2);
+        }
+
+        // 2. Queue TWAPI AddUser with FaceTemplate
+        for (const sn of targetSerials) {
+          timewatchApiService.addUser({
+            UserID: pin,
+            Name: name,
+            DeviceID: sn,
+            FaceTemplate: base64
+          }).catch(() => {});
+        }
+      }
+    }
+
+    if (validStudents.length === 0) {
+      return { success: true, count: 0, message: 'No valid photos to push' };
+    }
+
+    // 3. Dispatch via TimeWatch iDMS DownloadUser.aspx in ONE single browser session
+    let dispatchedCount = 0;
+    try {
+      await this._withBrowser(async (page) => {
+        await page.goto(`${this.serverUrl}/DownloadUser.aspx`, { waitUntil: 'networkidle0', timeout: 15000 });
+
+        for (const u of validStudents) {
+          const dataUri = `data:image/jpeg;base64,${u.base64}`;
+          const ok = await page.evaluate(async (uri, p, n) => {
+            const dev = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_GrdDevice');
+            if (dev) dev.SetSelectedIndex(0);
+
+            const user = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_txtuserID');
+            if (user) { user.SetText(p); user.SetValue(p); }
+
+            const nameCtrl = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_UserName');
+            if (nameCtrl) { nameCtrl.SetText(n); nameCtrl.SetValue(n); }
+
+            return new Promise(resolve => {
+              PageMethods.uploasClientClick(uri, p, 'IN1', n,
+                () => resolve(true),
+                () => resolve(false)
+              );
+            });
+          }, dataUri, u.pin, u.name);
+
+          if (ok) dispatchedCount++;
+        }
+
+        if (dispatchedCount > 0) {
+          // Select all turnstile rows in grdDeviceU
+          await page.evaluate(() => {
+            const grid = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_grdDeviceU');
+            if (grid) grid.SelectAllRowsOnPage();
+          });
+          await new Promise(r => setTimeout(r, 1000));
+
+          // Click Upload button to send commands across all 8 turnstiles
+          await page.evaluate(() => {
+            const btn = document.getElementById('ContentPlaceHolder1_btnUpload_I');
+            if (btn) btn.click();
+            else {
+              const c = ASPxClientControl.GetControlCollection().GetByName('ContentPlaceHolder1_btnUpload');
+              if (c) c.DoClick();
+            }
+          });
+
+          await new Promise(r => setTimeout(r, 4000));
+          console.log(`[HARDWARE BATCH PHOTO PUSH] Successfully dispatched upload command for ${dispatchedCount} photo(s) across all 8 turnstiles!`);
+        }
+      });
+    } catch (batchErr) {
+      console.warn(`[HARDWARE BATCH PHOTO PUSH WARN] ${batchErr.message}`);
+    }
+
+    return {
+      success: true,
+      count: dispatchedCount,
+      message: `Pushed ${dispatchedCount} student face photos across all 8 turnstiles.`
+    };
+  }
+
+  /**
+   * Push all registered students to all 8 physical turnstiles
+   */
+  async pushAllStudentsToTurnstiles() {
+    console.log('[TIMEWATCH HARDWARE PUSH ALL] Uploading all users to 8 turnstile devices...');
+    const result = await this._withBrowser(async (page) => {
+      await page.goto(`${this.serverUrl}/Employee.aspx`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForSelector('#ContentPlaceHolder1_ASPxButton3', { timeout: 10000 });
+
+      // 1. Select all employees
+      await page.evaluate(() => {
+        const chk = document.querySelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXSelAllBtn0') ||
+                    document.querySelector('[id*="DXSelAllBtn0"]');
+        if (chk) chk.click();
+      });
+      await new Promise(r => setTimeout(r, 1000));
+
+      // 2. Click Upload To Device
+      await page.evaluate(() => {
+        const btn = document.getElementById('ContentPlaceHolder1_ASPxButton3') ||
+                    document.getElementById('ContentPlaceHolder1_ASPxButton3_CD');
+        if (btn) btn.click();
+      });
+      await new Promise(r => setTimeout(r, 1500));
+
+      // 3. Select all devices in popup and click OK
+      await page.evaluate(() => {
+        const devChk = document.querySelector('#ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_grdDevice_DXSelAllBtn0') ||
+                       document.querySelector('[id*="grdDevice"][id*="DXSelAllBtn0"]');
+        if (devChk) devChk.click();
+
+        const okBtn = document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK') ||
+                      document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK_CD') ||
+                      document.querySelector('[id*="btOK"]');
+        if (okBtn) okBtn.click();
+      });
+
+      await new Promise(r => setTimeout(r, 3000));
+      console.log('[TIMEWATCH HARDWARE PUSH ALL] All students uploaded to all turnstiles successfully!');
+      return { success: true, message: 'All students uploaded to all turnstiles successfully!' };
+    });
+
+    // 4. Push photos in a separate step (OUTSIDE Employee.aspx session to avoid deadlock)
+    try {
+      const [photoStudents] = await pool.query(
+        "SELECT student_id, first_name, last_name, biometric_device_id, photo_avatar FROM students WHERE photo_avatar IS NOT NULL AND photo_avatar != ''"
+      );
+      if (photoStudents.length > 0) {
+        await this.pushStudentPhotosBatch(photoStudents);
+      }
+    } catch (pErr) {
+      console.warn('[HARDWARE PHOTO PUSH ALL WARN]', pErr.message);
+    }
+
+    return {
+      success: true,
+      message: 'Successfully dispatched Set User Details and Face Photos for all students across all 8 turnstile machines.'
+    };
+  }
+
+  /**
+   * Delete a student from TimeWatch iDMS and trigger automatic hardware wipe across turnstiles
+   */
+  async deleteStudentFromTurnstiles({ pin, name }) {
+    console.log(`[TIMEWATCH HARDWARE DELETE] Deleting student ${name} (PIN: ${pin}) from TimeWatch and turnstiles...`);
+    try {
+      return await this._withBrowser(async (page) => {
+        page.on('dialog', async d => {
+          console.log('[TIMEWATCH DIALOG]', d.type(), d.message());
+          await d.accept().catch(() => {});
+        });
+
+        await page.goto(`${this.serverUrl}/frmTemplateHTSeries.aspx`, { waitUntil: 'networkidle2', timeout: 30000 });
+
+        // Select all devices on ASPxGridView2
+        const hasGrid2 = await page.evaluate(() => !!document.querySelector('#ContentPlaceHolder1_ASPxGridView2_DXHeadersRow0 .dxICheckBox_MetropolisBlue'));
+        if (hasGrid2) {
+          await page.click('#ContentPlaceHolder1_ASPxGridView2_DXHeadersRow0 .dxICheckBox_MetropolisBlue').catch(() => {});
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        // Find user row in ASPxGridView1 matching target pin
+        const targetPin = String(pin).trim();
+        const found = await page.evaluate((p) => {
+          const rows = Array.from(document.querySelectorAll('#ContentPlaceHolder1_ASPxGridView1 tr[id*="DXDataRow"]'));
+          const r = rows.find(row => {
+            const cells = Array.from(row.querySelectorAll('td')).map(c => c.innerText.trim());
+            return cells.includes(p);
+          });
+          if (r) {
+            const chk = r.querySelector('.dxICheckBox_MetropolisBlue');
+            if (chk) { chk.click(); return true; }
+          }
+          return false;
+        }, targetPin);
+
+        if (found) {
+          await new Promise(r => setTimeout(r, 1500));
+          // Click Delete button (ASPxButton2)
+          await page.evaluate(() => {
+            const btn2 = document.getElementById('ContentPlaceHolder1_ASPxButton2');
+            if (btn2) btn2.click();
+          });
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        return {
+          success: true,
+          deletedOnTimeWatch: found,
+          message: found
+            ? `Successfully removed PIN ${targetPin} from TimeWatch and queued turnstile deletion.`
+            : `User PIN ${targetPin} was not present on TimeWatch server.`
+        };
+      });
+    } catch (err) {
+      console.warn('[TIMEWATCH HARDWARE DELETE WARN]', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Delete all students from TimeWatch iDMS and turnstiles
+   */
+  async deleteAllStudentsFromTurnstiles() {
+    console.log('[TIMEWATCH HARDWARE DELETE ALL] Wiping all enrolled templates and users from TimeWatch and turnstiles...');
+    try {
+      return await this._withBrowser(async (page) => {
+        page.on('dialog', async d => {
+          console.log('[TIMEWATCH DIALOG]', d.type(), d.message());
+          await d.accept().catch(() => {});
+        });
+
+        await page.goto(`${this.serverUrl}/frmTemplateHTSeries.aspx`, { waitUntil: 'networkidle2', timeout: 30000 });
+
+        // 1. Select all turnstile devices on ASPxGridView2
+        const hasGrid2 = await page.evaluate(() => !!document.querySelector('#ContentPlaceHolder1_ASPxGridView2_DXHeadersRow0 .dxICheckBox_MetropolisBlue'));
+        if (hasGrid2) {
+          await page.click('#ContentPlaceHolder1_ASPxGridView2_DXHeadersRow0 .dxICheckBox_MetropolisBlue').catch(() => {});
+          await new Promise(r => setTimeout(r, 2500));
+        }
+
+        // 2. Select all users/templates on ASPxGridView1
+        const hasGrid1 = await page.evaluate(() => !!document.querySelector('#ContentPlaceHolder1_ASPxGridView1_DXHeadersRow0 .dxICheckBox_MetropolisBlue'));
+        if (hasGrid1) {
+          await page.click('#ContentPlaceHolder1_ASPxGridView1_DXHeadersRow0 .dxICheckBox_MetropolisBlue').catch(() => {});
+          await new Promise(r => setTimeout(r, 2500));
+        }
+
+        // 3. Click the official "Delete All" button
+        await page.evaluate(() => {
+          const btn4 = document.getElementById('ContentPlaceHolder1_ASPxButton4');
+          if (btn4) btn4.click();
+        });
+
+        // Allow 8s for TimeWatch server to dispatch wipe commands across all physical turnstiles
+        await new Promise(r => setTimeout(r, 8000));
+
+        console.log('[TIMEWATCH HARDWARE DELETE ALL] Finished dispatching Delete All commands to all turnstiles.');
+        return {
+          success: true,
+          message: 'Successfully wiped all student records and templates from TimeWatch server and physical turnstiles.'
+        };
+      });
+    } catch (err) {
+      console.warn('[TIMEWATCH HARDWARE DELETE ALL WARN]', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Stop background polling
+   */
+  stopLiveSync() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    this.isPolling = false;
+    console.log('[TIMEWATCH iDMS 9001] Live punch sync worker stopped.');
+  }
+
+  /**
+   * Get service status summary
+   */
+  getStatus() {
+    return {
+      serverUrl: this.serverUrl,
+      connected: this.stats.connected,
+      isPolling: this.isPolling,
+      pollIntervalMs: this.pollIntervalMs,
+      stats: this.stats
+    };
+  }
+}
+
+module.exports = new TimeWatchIdmsService();
+

@@ -1,0 +1,28 @@
+[2026-10-15T06:09:01.656Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-15T06:10:03.178Z] Port 7000 Connection from 127.0.0.1:60888
+[2026-10-15T06:26:22.930Z] Port 7000 Connection from 192.168.169.144:64571
+[2026-10-15T06:26:22.935Z] Port 7000 DATA (445b) from 192.168.169.144: GET / HTTP/1.1
+Host: 192.168.169.144:7000
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+Us
+[2026-10-15T06:26:22.943Z] Port 7000 Connection from 192.168.169.144:63280
+[2026-10-15T10:44:11.416Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T08:02:07.037Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T08:08:03.774Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T08:10:41.539Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T08:10:55.406Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T09:06:14.811Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T09:06:23.226Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-23T09:06:32.717Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T05:32:37.998Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T05:32:50.742Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T05:36:13.727Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T05:36:24.846Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T05:36:31.631Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T10:49:48.734Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T10:50:11.555Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T10:50:21.373Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T10:50:34.422Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-26T10:59:12.200Z] Port 5000 ClientError from 1: read ECONNRESET
+[2026-10-28T10:53:41.301Z] Port 5000 ClientError from 1: read ECONNRESET

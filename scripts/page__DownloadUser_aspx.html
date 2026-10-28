@@ -1,0 +1,646 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
+<head><link rel="stylesheet" type="text/css" href="/DXR.axd?r=1_50,1_53,1_51,1_16,1_13,0_5669-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_5657-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_5665,0_5661,0_2219,0_2312-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_2317,1_17,0_2214,1_14,0_2221,0_2225-Sh_st" /><title>
+	iDMS(Version- 2.0.1)
+</title>
+    <script type="text/javascript"> 
+function display_c(){
+var refresh=1000; // Refresh rate in milli seconds
+mytime=setTimeout('display_ct()',refresh)
+}
+
+function display_ct() {
+    var x = new Date()
+    var x1 = x.toLocaleString();// changing the display to UTC string
+    document.getElementById('ct').innerHTML = x1;
+    tt = display_c();
+}
+</script>
+     <link rel="shortcut icon" href="Image/ICON.ico" />
+    <script type="text/javascript" src="webcam.js"></script>
+
+    <script type="text/javascript">
+        //function UpdateUploadButton() {
+        //    var isAnyFileSelected = false;
+        //    for (var i = 0; i < uploadControl.GetFileInputCount() ; i++) {
+        //        if (uploadControl.GetText(i) != "") { isAnyFileSelected = true; break; }
+        //    }
+        //    btnUploadViaPostback.SetEnabled(isAnyFileSelected);
+        //    btnUploadViaCallback.SetEnabled(isAnyFileSelected);
+        //}
+
+        function Confirmation() {
+            return confirm('Are You Sure Want To Update User ID ? All Old Data Will Be Removed. ');
+        }
+
+        // CAMERA SETTINGS.
+        var data_uri_tmp;
+        Webcam.set({
+            width: 352,
+            height: 432,
+            image_format: 'jpeg',
+            jpeg_quality: 100,
+
+        });
+        function startWeb() {
+            Webcam.attach('#camera');
+        }
+
+        function stopWeb() {
+            Webcam.reset();
+        }
+
+        // SHOW THE SNAPSHOT.
+        takeSnapShot = function () {
+            Webcam.snap(function (data_uri) {
+                //alert(data_uri);
+                UserPhoto.SetImageUrl(data_uri);
+                data_uri_tmp = data_uri;
+                //document.getElementById('snapShot').innerHTML =
+                //    '<img src="' + data_uri + '" width="352px" height="432px" />';
+            });
+
+        }
+    </script>
+    <style type="text/css">
+        .auto-style1 {
+        }
+    </style>
+
+    <style type="text/css">
+        .style1
+        {
+            width: 100%;
+        }
+        .main_div{
+            position:relative;
+            margin-top:100px;
+        }
+    </style>
+</head>
+<body onload=display_ct();>
+    <form method="post" action="./DownloadUser.aspx" id="form1">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="HEshcd0378RUYF715/e5tXhLlU/QJkDocHfx0JJ+RtB2TbRitVko44kPKke0jb2mBK92vYdBtxyiDRWkJILEC8aAsmxJah/eb6PI/hPhRzaWxZAKOC+gXkrfZDQd0x4ZlT9aXn7lEl/Mb2o1UTPx3e5j+dnI1LWgvY8XJ883qF5IC05J5/nRNQQtxhckmoBwR79Lr9eAcOMFeTF95yhy2pPBLkifXlGjm5znS8g/htoZJadVTro8C5Oy4SG2OfJKBItIAgIknamQVFKUjF6RQwsdmY97nh329cjwlhOUyVUL1sNcaMxOG5jTn60oN41byiLlM3tHAH0NM92owUIM04ZGvxZ86mnbQxa6U4K2JU5QvD9jGRz51a8mefS7b9oLnNNzkpwAoFgRD/pi+IDqtNPiACt5EOAf0QWb4LPEhBVkZCY49k2F/LX99bStfgnxpxKCtOQsJscEJVc0nieEjqIGlzFKKgmBjUEQlNpZX+TzRbPdcvVrfC5pbHM/363Jhlkv28ZH3/PmB/ztirDroNkrrH4B9hkiwC+0FhLEDXhbTFBchs4TmwMdZYy9Xy5BEB2lBdPfs48ghlepoNlNDv7DeB0bP+VfDtaridLNEC0O0gvy6ix29U3Crcy0aOnGI3ZtHw0hrO0qHUIDG7u1ENWhhSbUwl//McJlvhDDWwKPXCz6Hf2o4EEug8NdRzwd1YN0Ibm5XPjx0HNIgj2/m3iguoeoPeyaKY0+MFiICbyKbcwqKAjXzA/T4da/nY+UG3nieKr7nl+qFgJG86EjT2NuR/z4Sfqn4iF+hLJpPXFe5hg4Jk38a7chqdffisUox/o0Gu8oM6kTQ8SpcXuBupjnl/yEru8jgXLPzLDCBzN2JWbnnE6K1L477d+uEu9mbRicdWrIEroWE7F1S4d5ZoNE+0/Cui8iw2XAHs/cnSsMExakJ1lpFibPc+p9c4PARbma8xOFW8oo2c+FXdW2AM4YTDFr19m6Yomy98tuzwl1mPARKZCKWMgJ1OwsBHCX3TTtAszYVctDZoNiR77Y4RKS4cgqRUQdU5QvL9p2Ok5WKTY1TwJwI1pmHe1N8viQkfYYpyJYDunBJ5FS4hobpcXMQJ+4OxQz6i0hcMHzgmzChbsgVRdUmv3zH2TNn2XiFlnFzWJLo4fRKuPoADXDo9RptCHsvIXsgw78hwYLJgtM9xqvJtZrFOK6YVQO2TKEXgGNVDI9shGFgnQHw2sR3372L2kLhLQUZpJ+Gq70+E56KVAXzxpmdkdvo+pYT3ThIvCwaqflrXOraAnjlDARKJr6I0DwpRMCW4gw2pLBVbkSijbRsM2PehZcJ/lRF0weWklnPLzkloiZqfrFLMuAZ5Y4iBb876gJcwyMnTs+oku/wfdFwHCNb8ld4EQ/YWoIkxGFlZQeYNIiwg9V2dn1coH1PdHJBH/Uw2+GbdZYQuDawhjZrRkBlnap9SPTqfcooTooDmFPHCoEjkzctOeiYppjVq2+xhPESHBNVswUWziDpZv3/3KMb3C+Tq3ISRmuK5QVuPK2+s/jvsKQn4FLiJvTEFwxVt9ZSNvzWvkmsgvqxsoMo8SG0zPsPK65SPLYVnqLir6xMpgvAj9fQ07TgqNDcHQzj0FQZg8iCqDzdWtvYWDzRgYS4B5VGg5uspkcDwzPpsD981e8df54TFBChS3A3UDOQv5kV74F10/MAclmX3YvBk1wTMHHoeqe2dtpfkE9bYo2raSLtA1mwUVQsvkgiFLc6dkmRunpSufyxo7xpOmqqGdkvRPANbE/+rVR/320J9ngEeAcVE4Dk2It+W22LiF3PrPZ+Yp27d0fFcC0f53FGTlMkuvXZymJM23OaW/pEoA7vNoFaH9RtrouNaz6LPLBvmHF21b5pCzlwrGqTx4Hw7g8ZruU2keZYAwvlJb/A+InZudt+bBVor60DyaqRKVMbj4C/JxZxm9JLmlYFueX846p9d7K+2Scjn6x31SWOUY2CUaFoityCCNIQBG8MeIpkCjEGtwok058wjVPrr0KnyDLe/hQ/awbHYqyByjdzl9I8xkt3bisst8r5AsBskks+YOH7B8P5k/seP/dM8knwcgYPChp+rdX171XHSP7T2mWRGbmjTZUqHdG21W/XbqxqB4WLeMWVHhXvSWjdocU4+9zbPbpt6JN5uyx6WwqQHHyQ2/F+UH2SL5W3YHWagI2so6AmMchXgaJemt7N9OeAUeaq6doioS5Ei6CVe3Sx4cAU9DfrqOJfCvnob3lw39p1eyoqT/0+gxB052ttfJU5aRdtsSyRxFDNAS6WzKbsaXmVlFNGFtwuWalGm7DRUVKJ1ALDEJTTnXnLzZ30BB6w6zNVReOFVH7DR4IUJuQ4oLXDSg32yNwiBgB93RkP6cVTmEgyLZFUGMD7BEdYRJbbvd5YrY5d0TgxC2Uif6GucKhH+xLVjIbdV5rQF1kRmlcviCNKxzWmW5AO9o=" />
+
+
+<script src="/ScriptResource.axd?d=uHIkleVeDJf4xS50Krz-yPfgrLmhS-Mi1xuO7kufWGNJ83tHP4KbqvBNEQ23QfnYOoPWIq31qOPuAGYZ04pGmgJ-beqF5PcPsiwBAsFaBXbcB7LJd8CoQDSMwEgNjO7DYJwaKDkfya5cL86TnBI1vP060uyB2rNq0sB6t43na4Y1&amp;t=74a40145" type="text/javascript"></script>
+<script type="text/javascript">
+//<![CDATA[
+var PageMethods = function() {
+PageMethods.initializeBase(this);
+this._timeout = 0;
+this._userContext = null;
+this._succeeded = null;
+this._failed = null;
+}
+PageMethods.prototype = {
+_get_path:function() {
+ var p = this.get_path();
+ if (p) return p;
+ else return PageMethods._staticInstance.get_path();},
+uploasClientClick:function(data_uri_tmp,mID,mDevice,mName,succeededCallback, failedCallback, userContext) {
+return this._invoke(this._get_path(), 'uploasClientClick',false,{data_uri_tmp:data_uri_tmp,mID:mID,mDevice:mDevice,mName:mName},succeededCallback,failedCallback,userContext); }}
+PageMethods.registerClass('PageMethods',Sys.Net.WebServiceProxy);
+PageMethods._staticInstance = new PageMethods();
+PageMethods.set_path = function(value) { PageMethods._staticInstance.set_path(value); }
+PageMethods.get_path = function() { return PageMethods._staticInstance.get_path(); }
+PageMethods.set_timeout = function(value) { PageMethods._staticInstance.set_timeout(value); }
+PageMethods.get_timeout = function() { return PageMethods._staticInstance.get_timeout(); }
+PageMethods.set_defaultUserContext = function(value) { PageMethods._staticInstance.set_defaultUserContext(value); }
+PageMethods.get_defaultUserContext = function() { return PageMethods._staticInstance.get_defaultUserContext(); }
+PageMethods.set_defaultSucceededCallback = function(value) { PageMethods._staticInstance.set_defaultSucceededCallback(value); }
+PageMethods.get_defaultSucceededCallback = function() { return PageMethods._staticInstance.get_defaultSucceededCallback(); }
+PageMethods.set_defaultFailedCallback = function(value) { PageMethods._staticInstance.set_defaultFailedCallback(value); }
+PageMethods.get_defaultFailedCallback = function() { return PageMethods._staticInstance.get_defaultFailedCallback(); }
+PageMethods.set_enableJsonp = function(value) { PageMethods._staticInstance.set_enableJsonp(value); }
+PageMethods.get_enableJsonp = function() { return PageMethods._staticInstance.get_enableJsonp(); }
+PageMethods.set_jsonpCallbackParameter = function(value) { PageMethods._staticInstance.set_jsonpCallbackParameter(value); }
+PageMethods.get_jsonpCallbackParameter = function() { return PageMethods._staticInstance.get_jsonpCallbackParameter(); }
+PageMethods.set_path("DownloadUser.aspx");
+PageMethods.uploasClientClick= function(data_uri_tmp,mID,mDevice,mName,onSuccess,onFailed,userContext) {PageMethods._staticInstance.uploasClientClick(data_uri_tmp,mID,mDevice,mName,onSuccess,onFailed,userContext); }
+//]]>
+</script>
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="70943769" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="kTfcwRJjWBngOdIjOIwz2tCN94DzHzunhHpZwv77fL/bliWk350zVYdyR21SHduQV1iBS5JxSdcYIirlSAxH9r7FxCfKENY9fP1XJCg8khxZfnl3qD3RP1VN1WN6MP6IZpSVo5bXiYKVjVcqP5Hp6A==" />
+    <div>
+        <table class="style1" style="position:fixed;background-color:#ffffff;top: 0;z-index: 100;">
+            <tr>
+                <td>
+                     <input type="hidden"/><script id="dxis_1647112858" src="/DXR.axd?r=1_211,1_304,1_185,1_298,1_221,1_188,1_182,1_290,1_296,1_279,1_209,1_216,1_217,1_190,1_223,1_208,1_206,1_288,1_212,1_198,1_196,1_254,1_256,1_263,1_235,1_248,1_244,1_242,1_251,1_239,1_247-Sh_st" type="text/javascript"></script><img class="dxeImage dxe-loadingImage" id="ASPxImage2" onload="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onabort="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onerror="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" src="Image/logo.png" alt="" height="50%" width="50%" />
+                </td>
+                <td align="right" valign="bottom" style="padding-right:15px; font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: medium; font-weight: normal; color: #333333;">
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel1">Welcome:  </span>
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel2">ADMIN</span>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                     <span class="dxeBase_MetropolisBlue" id="ASPxLabel3">Login Time:  </span>
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel4">26-10-2026 14:07:11</span>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                     <span class="dxeBase_MetropolisBlue" id="ASPxLabel5">Current Time:  </span>
+                    <span id='ct' style="font-family:Tahoma; font-size:small" ></span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="dxmLite_MetropolisBlue dxm-ltr">
+	<div class="dxm-main dxm-horizontal dxm-autoWidth" id="ASPxMenu1"><font size="2">
+		<ul class="dx dxm-image-l">
+			<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceListHTSeries.aspx"><font size="2"><img class="dxIcon_navigation_home_16x16office2013 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Home</span></font></a></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Master</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_reports_designreport_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_data_editdatasource_16x16office2013 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Template Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_dashboards_locknavigation_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Admin</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Login.aspx"><font size="2"><img class="dxIcon_actions_reset2_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">LogOut</span></font></a></li>
+		</ul>
+	</font></div><b class="dx-clear"></b><div id="ASPxMenu1_DXM1_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Company.aspx"><font size="2"><img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Company</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Department.aspx"><font size="2"><img class="dxIcon_businessobjects_bodepartment_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Department</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="GroupMapping.aspx"><font size="2"><img class="dxIcon_reports_groupfieldcollection_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Group</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Employee.aspx"><font size="2"><img class="dxIcon_people_publicfix_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Employee</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UploadExcel.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Excel Utility</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogUpload.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Upload</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UploadVoice.aspx"><font size="2"><img class="dxIcon_navigation_next_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Upload Voice</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM2_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceListHTseries.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device List</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserList.aspx"><font size="2"><img class="dxIcon_businessobjects_bocustomer_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device User List</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserPhoto.aspx"><font size="2"><img class="dxIcon_businessobjects_bocustomer_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device User Photo</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeletedUserDetails.aspx"><font size="2"><img class="dxIcon_businessobjects_bodetails_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Deleted/Blacklisted User</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceGroupMapping.aspx"><font size="2"><img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Group Mapping</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceCommand.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Commands</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="OnlineEnrollment.aspx"><font size="2"><img class="dxIcon_actions_show_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Remote Enrollment</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="FailedEntries.aspx"><font size="2"><img class="dxIcon_navigation_next_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Failed Entries</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM3_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="RealTimeLog.aspx"><font size="2"><img class="dxIcon_people_employee_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Real Time Log</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="RealTimeLogBio.aspx"><font size="2"><img class="dxIcon_people_employee_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Real Time Log</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogDataImage.aspx"><font size="2"><img class="dxIcon_actions_newgroup_16x16devav dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log(With Image)</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogData.aspx"><font size="2"><img class="dxIcon_mode_touchmode_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Management</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM4_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="TemplateManagement.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Bio Devies</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="TempManage.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Manual Download Upload</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="frmTemplatetZK.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">ZK Device</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="frmTemplateHTSeries.aspx"><font size="2"><img class="dxIcon_businessobjects_bodetails_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Template Manage</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item dxm-selected"><div class="dxm-content dxm-hasText">
+					<img class="dxIcon_actions_download_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Download User</span>
+				</div><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM5_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserManage.aspx"><font size="2"><img class="dxIcon_businessobjects_bouser_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">User Manage</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="CommonSetting.aspx"><font size="2"><img class="dxIcon_edit_customization_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Common Settings</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="ParallelDB.aspx"><font size="2"><img class="dxIcon_data_database_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Parallel DB</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div>
+</div><script id="dxss_158479105" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ASPxMenu1',[[['dxm-hovered',''],['',''],['DXI0_','DXI1_','DXI1i0_','DXI1i1_','DXI1i2_','DXI1i3_','DXI1i4_','DXI1i5_','DXI1i6_','DXI2_','DXI2i0_','DXI2i1_','DXI2i2_','DXI2i3_','DXI2i4_','DXI2i5_','DXI2i7_','DXI2i8_','DXI3_','DXI3i0_','DXI3i1_','DXI3i2_','DXI3i3_','DXI4_','DXI4i0_','DXI4i1_','DXI4i2_','DXI4i3_','DXI5_','DXI5i0_','DXI5i1_','DXI5i2_','DXI6_'],['','T']],[[''],[''],['DXME1_','DXMBC1_','DXME2_','DXMBC2_','DXME3_','DXMBC3_','DXME4_','DXMBC4_','DXME5_','DXMBC5_']],[[''],[''],['DXI4i4_'],['','T']]]);
+ASPx.AddDisabledItems('ASPxMenu1',[[['dxm-disabled'],[''],['DXI0_','DXI1_','DXI1i0_','DXI1i1_','DXI1i2_','DXI1i3_','DXI1i4_','DXI1i5_','DXI1i6_','DXI2_','DXI2i0_','DXI2i1_','DXI2i2_','DXI2i3_','DXI2i4_','DXI2i5_','DXI2i7_','DXI2i8_','DXI3_','DXI3i0_','DXI3i1_','DXI3i2_','DXI3i3_','DXI4_','DXI4i0_','DXI4i1_','DXI4i2_','DXI4i3_','DXI4i4_','DXI5_','DXI5i0_','DXI5i1_','DXI5i2_','DXI6_'],['','T'],[[{'spriteCssClass':'dxIcon_navigation_home_16x16office2013_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodepartment_16x16_disabled'}],[{'spriteCssClass':'dxIcon_reports_groupfieldcollection_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_publicfix_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_next_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bocustomer_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bocustomer_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodetails_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_show_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_next_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_reports_designreport_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_employee_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_employee_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_newgroup_16x16devav_disabled'}],[{'spriteCssClass':'dxIcon_mode_touchmode_16x16_disabled'}],[{'spriteCssClass':'dxIcon_data_editdatasource_16x16office2013_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodetails_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_download_16x16_disabled'}],[{'spriteCssClass':'dxIcon_dashboards_locknavigation_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bouser_16x16_disabled'}],[{'spriteCssClass':'dxIcon_edit_customization_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_data_database_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_reset2_16x16_disabled'}]],['Img','PImg']]]);
+ASPx.createControl(ASPxClientMenu,'ASPxMenu1','',{'uniqueID':'ctl00$ASPxMenu1','renderData':{'':[[0],[1],[2],[3],[4],[5],[6]],'1':[[0],[1],[2],[3],[4],[5],[6]],'2':[[0],[1],[2],[3],[4],[5],[7],[8]],'3':[[0],[1],[2],[3]],'4':[[0],[1],[2],[3],4],'5':[[0],[1],[2]]}},null,null,{'items':[{'name':'HomeMenu'},{'items':[{'name':'CompanyMaster'},{'name':'DepartmentMaster'},{'name':'DeviceGroup'},{'name':'EmployeeMaster'},{'name':'ExcelUtility'},{'name':'LogUpload'},{'name':'UploadVoice'}]},{'items':[{'name':'DevList'},{'name':'DevUserList'},{'name':'DevUserPhotoList'},{'name':'DeletedUser'},{'name':'GroupMapping'},{'name':'DeviceCommands'},{'visible':false},{'name':'RemoteEnroll'},{'name':'FailedEntries'}]},{'items':[{'name':'RealLog'},{'name':'RealTimeLogBio','clientVisible':false},{'name':'LogImage'},{'name':'Log'}]},{'name':'TemplateManagement','items':[{'name':'TempBio','clientVisible':false},{'name':'TempBioManual','clientVisible':false},{'name':'TempZK','clientVisible':false},{'name':'TempHT'},{'name':'TempHTU'}]},{'name':'AdminMenu','items':[{},{},{}]},{}]});
+
+//-->
+</script>
+                </td>
+            </tr>
+        </table>
+
+        <div class="main_div">
+        
+    <div>
+        
+        <div id="Frame" style="align-content: center">
+
+
+            <table border="1" align="center" style="border-color: #6AB6E8">
+                <tr>
+                    <td colspan="2" align="center" style="width: auto; padding: 5px">
+                        <span class="dxeBase_MetropolisBlue" id="ContentPlaceHolder1_ASPxLabel9"><b><font color="#80C9EA" size="5">User Download Upload</font></b></span>
+                        <br />
+                        
+                    </td>
+                </tr>
+                <tr>
+                    <td align="center" colspan="2" style="width: auto; padding: 5px">
+                        <img class="dxeImage dxe-loadingImage" id="ContentPlaceHolder1_UserPhoto" onload="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onabort="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onerror="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" src="Image/User.png" alt="" border="2" height="200" width="200" /><script id="dxss_1795687948" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_UserPhoto',[[['dxeDisabled'],[''],['']]]);
+ASPx.createControl(ASPxClientImage,'ContentPlaceHolder1_UserPhoto','UserPhoto',{'uniqueID':'ctl00$ContentPlaceHolder1$UserPhoto'});
+
+//-->
+</script>
+                        <br />
+                        
+                    </td>
+
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1">
+                        <span class="dxeBase" id="ContentPlaceHolder1_ASPxLabel8">Device ID*:</span>
+                    </td>
+                    <td style="width: auto; padding: 5px">
+                        
+                        <table id="ContentPlaceHolder1_GrdDevice_ET" class="dxeValidStEditorTable dxeRoot_MetropolisBlue">
+	<tr>
+		<td id="ContentPlaceHolder1_GrdDevice_CC" class="dxeErrorFrame_MetropolisBlue dxeErrorFrameSys dxeNoBorderRight dxeControlsCell_MetropolisBlue" style="vertical-align:middle;"><table class="dxeButtonEditSys dxeButtonEdit_MetropolisBlue" id="ContentPlaceHolder1_GrdDevice" style="border-collapse:separate;">
+			<tr>
+				<td style="display:none;"><input id="ContentPlaceHolder1_GrdDevice_VI" name="ContentPlaceHolder1_GrdDevice_VI" type="hidden" /></td><td class="dxic" onmousedown="return ASPx.DDDropDown(&#39;ContentPlaceHolder1_GrdDevice&#39;, event)" width="100%"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_GrdDevice_I" name="ctl00$ContentPlaceHolder1$GrdDevice" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_GrdDevice&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_GrdDevice&#39;)" onchange="ASPx.ETextChanged(&#39;ContentPlaceHolder1_GrdDevice&#39;)" type="text" /></td><td id="ContentPlaceHolder1_GrdDevice_B-1" class="dxeButton dxeButtonEditButton_MetropolisBlue" onmousedown="return ASPx.DDDropDown(&#39;ContentPlaceHolder1_GrdDevice&#39;, event)" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;"><img id="ContentPlaceHolder1_GrdDevice_B-1Img" class="dxEditors_edtDropDown_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="v" /></td>
+			</tr>
+		</table><div id="ContentPlaceHolder1_GrdDevice_DDD_PW-1" class="dxpcDropDown_MetropolisBlue dxpclW dxpc-ie dxpc-ddSys" style="cursor:default;z-index:10000;display:none;visibility:hidden;">
+			<div class="dxpc-mainDiv dxpc-shadow">
+				<div class="dxpc-contentWrapper">
+					<div class="dxpc-content">
+						<table class="dxeListBox_MetropolisBlue" id="ContentPlaceHolder1_GrdDevice_DDD_L" style="border-collapse:separate;">
+							<tr>
+								<td style="vertical-align:Top;"><div id="ContentPlaceHolder1_GrdDevice_DDD_L_D" class="dxlbd" style="overflow-x:hidden;overflow-y:auto;">
+									<input id="ContentPlaceHolder1_GrdDevice_DDD_L_VI" type="hidden" name="ctl00$ContentPlaceHolder1$GrdDevice$DDD$L" /><table id="ContentPlaceHolder1_GrdDevice_DDD_L_LBT" width="100%" style="border-collapse:separate;">
+										<tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">IN1</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">OUT1</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">OUT2</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">OUT3</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">IN3</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">IN4</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">OUT4</td>
+										</tr><tr class="dxeListBoxItemRow_MetropolisBlue">
+											<td class="dxeListBoxItem_MetropolisBlue">IN2</td>
+										</tr>
+									</table>
+								</div></td>
+							</tr>
+						</table><script id="dxss_1759556111" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_GrdDevice_DDD_L',[[['dxeDisabled_MetropolisBlue'],[''],['']]]);
+ASPx.createControl(ASPxClientListBox,'ContentPlaceHolder1_GrdDevice_DDD_L','',{'uniqueID':'ctl00$ContentPlaceHolder1$GrdDevice$DDD$L','itemsValue':['TW30000006260175','TW30000006260161','TW30000006260156','TW30000006260207','TW30000006260242','TW30000006260256','TW30000006260265','TW30000006260127'],'isComboBoxList':true,'hoverClasses':['dxeListBoxItemHover_MetropolisBlue'],'selectedClasses':['dxeListBoxItemSelected_MetropolisBlue'],'disabledClasses':['dxeDisabled_MetropolisBlue']},{'SelectedIndexChanged':function (s, e) { ASPx.CBLBSelectedIndexChanged('ContentPlaceHolder1_GrdDevice', e); },'ItemClick':function (s, e) { ASPx.CBLBItemMouseUp('ContentPlaceHolder1_GrdDevice', e); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script>
+					</div>
+				</div>
+			</div>
+		</div><script id="dxss_2076976966" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_GrdDevice_DDD',[[['dxpc-closeBtnHover'],[''],['HCB-1']]]);
+ASPx.createControl(ASPxClientPopupControl,'ContentPlaceHolder1_GrdDevice_DDD','',{'uniqueID':'ctl00$ContentPlaceHolder1$GrdDevice$DDD','adjustInnerControlsSizeOnShow':false,'popupAnimationType':'slide','closeAction':'CloseButton','popupHorizontalAlign':'LeftSides','popupVerticalAlign':'Below','isPopupPositionCorrectionOn':false},{'Shown':function (s, e) { ASPx.DDBPCShown('ContentPlaceHolder1_GrdDevice', e); }});
+
+//-->
+</script></td><td id="ContentPlaceHolder1_GrdDevice_EC" class="dxeErrorCell_MetropolisBlue dxeErrorFrame_MetropolisBlue dxeErrorFrameSys dxeErrorCellSys dxeNoBorderLeft" style="vertical-align:middle;visibility:hidden;"><table width="100%">
+			<tr>
+				<td><img id="ContentPlaceHolder1_GrdDevice_EI" class="dxEditors_edtError_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="" /></td><td id="ContentPlaceHolder1_GrdDevice_ETC" width="100%" style="white-space:nowrap;">Invalid value</td>
+			</tr>
+		</table></td>
+	</tr>
+</table><script id="dxss_1463719693" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_GrdDevice',[[['dxeButtonEditButtonHover_MetropolisBlue'],[''],['B-1']]]);
+ASPx.RemoveHoverItems('ContentPlaceHolder1_GrdDevice',[[['B-100']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_GrdDevice',[[['dxeButtonEditButtonPressed_MetropolisBlue'],[''],['B-1']]]);
+ASPx.RemovePressedItems('ContentPlaceHolder1_GrdDevice',[[['B-100']]]);
+ASPx.createControl(ASPxClientComboBox,'ContentPlaceHolder1_GrdDevice','',{'uniqueID':'ctl00$ContentPlaceHolder1$GrdDevice','validationGroup':'MK','customValidationEnabled':true,'isValid':true,'errorText':'Invalid value','validationPatterns':[new ASPx.RequiredFieldValidationPattern('*')],'isErrorFrameRequired':true,'errorImageIsAssigned':true,'autoCompleteAttribute':{'name':'autocomplete','value':'off'},'lastSuccessValue':null,'islastSuccessValueInit':true},null,null,{'decorationStyles':[{'key':'I','className':'dxeInvalid_MetropolisBlue','cssText':''},{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script>
+                    </td>
+
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1">
+                        <span class="dxeBase" id="ContentPlaceHolder1_ASPxLabel1">User ID*:</span>
+                    </td>
+                    <td style="width: auto; padding: 5px">
+                        <table id="ContentPlaceHolder1_txtuserID_ET" class="dxeValidStEditorTable dxeRoot">
+	<tr>
+		<td id="ContentPlaceHolder1_txtuserID_CC" class="dxeErrorFrame dxeErrorFrameSys dxeNoBorderRight dxeControlsCell" style="vertical-align:middle;"><table class="dxeTextBoxSys dxeTextBox dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_txtuserID" width="170" style="border-collapse:separate;">
+			<tr>
+				<td class="dxic" width="100%"><input class="dxeEditArea dxeEditAreaSys" id="ContentPlaceHolder1_txtuserID_I" name="ctl00$ContentPlaceHolder1$txtuserID" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_txtuserID&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_txtuserID&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_txtuserID&#39;)" type="text" /></td>
+			</tr>
+		</table></td><td id="ContentPlaceHolder1_txtuserID_EC" class="dxeErrorCell dxeErrorFrame dxeErrorFrameSys dxeErrorCellSys dxeNoBorderLeft" style="vertical-align:middle;visibility:hidden;"><table width="100%">
+			<tr>
+				<td><img id="ContentPlaceHolder1_txtuserID_EI" class="dxEditors_edtError" src="/DXR.axd?r=1_58-Sh_st" alt="" /></td><td id="ContentPlaceHolder1_txtuserID_ETC" width="100%" style="white-space:nowrap;">Invalid value</td>
+			</tr>
+		</table></td>
+	</tr>
+</table><script id="dxss_1349101117" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_txtuserID','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$txtuserID','validationGroup':'MK','customValidationEnabled':true,'isValid':true,'errorText':'Invalid value','validationPatterns':[new ASPx.RequiredFieldValidationPattern('*')],'setFocusOnError':true,'isErrorFrameRequired':true,'errorImageIsAssigned':true},null,null,{'decorationStyles':[{'key':'I','className':'dxeInvalid','cssText':''},{'key':'F','className':'dxeFocused','cssText':''}]});
+
+//-->
+</script>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1">
+                        <span class="dxeBase" id="ContentPlaceHolder1_ASPxLabel11">Name:</span>
+                    </td>
+                    <td style="width: auto; padding: 5px">
+                        <table class="dxeTextBoxSys dxeTextBox dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_UserName" width="170">
+	<tr>
+		<td class="dxic" width="100%"><input class="dxeEditArea dxeEditAreaSys" id="ContentPlaceHolder1_UserName_I" name="ctl00$ContentPlaceHolder1$UserName" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_UserName&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_UserName&#39;)" onchange="setTimeout(&#39;__doPostBack(&quot;ctl00$ContentPlaceHolder1$UserName&quot;,&quot;&quot;)&#39;, 0)" type="text" /></td>
+	</tr>
+</table><script id="dxss_263498115" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_UserName','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$UserName'},null,null,{'decorationStyles':[{'key':'F','className':'dxeFocused','cssText':''}]});
+
+//-->
+</script>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1">
+                        <span class="dxeBase" id="ContentPlaceHolder1_ASPxLabel2">New User ID:</span>
+                    </td>
+                    <td style="width: auto; padding: 5px">
+                        <table class="dxeTextBoxSys dxeTextBox dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_txtNewUser" width="170">
+	<tr>
+		<td class="dxic" width="100%"><input class="dxeEditArea dxeEditAreaSys" id="ContentPlaceHolder1_txtNewUser_I" name="ctl00$ContentPlaceHolder1$txtNewUser" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_txtNewUser&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_txtNewUser&#39;)" onchange="setTimeout(&#39;__doPostBack(&quot;ctl00$ContentPlaceHolder1$txtNewUser&quot;,&quot;&quot;)&#39;, 0)" type="text" /></td>
+	</tr>
+</table><script id="dxss_1797079048" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_txtNewUser','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$txtNewUser'},null,null,{'decorationStyles':[{'key':'F','className':'dxeFocused','cssText':''}]});
+
+//-->
+</script>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1">&nbsp;</td>
+                    <td style="width: auto; padding: 5px">
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_btnUploadOffline0" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_btnUploadOffline0_I" class="dxb-hb" value="Download" type="submit" name="ctl00$ContentPlaceHolder1$btnUploadOffline0" /><span class="dx-vam">Download</span>
+	</div>
+</div><script id="dxss_629133390" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_btnUploadOffline0',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_btnUploadOffline0',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_btnUploadOffline0',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_btnUploadOffline0','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$btnUploadOffline0','serverEvents':['Click'],'validationGroup':'MK'});
+
+//-->
+</script>
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_btnView" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_btnView_I" class="dxb-hb" value="View" type="submit" name="ctl00$ContentPlaceHolder1$btnView" /><span class="dx-vam">View</span>
+	</div>
+</div><script id="dxss_1564204179" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_btnView',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_btnView',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_btnView',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_btnView','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$btnView','serverEvents':['Click'],'validationGroup':'MK'});
+
+//-->
+</script>
+
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_OpenCam" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_OpenCam_I" class="dxb-hb" value="Open Camera" type="submit" name="ctl00$ContentPlaceHolder1$OpenCam" /><span class="dx-vam">Open Camera</span>
+	</div>
+</div><script id="dxss_788698744" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_OpenCam',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_OpenCam',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddDisabledItems('ContentPlaceHolder1_OpenCam',[[['dxbDisabled_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_OpenCam',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_OpenCam','OpenCam',{'uniqueID':'ctl00$ContentPlaceHolder1$OpenCam'},{'Click':function(s, e) {
+	ASPxPopupControlCam.Show();
+	startWeb();
+}});
+
+//-->
+</script>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1" colspan="2" align="center">
+                        <span class="dxeBase" id="ContentPlaceHolder1_ASPxLabel10">Seelct Device To Upload</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px" class="auto-style1" colspan="2" align="center">
+
+                        <table class="dxgvControl_MetropolisBlue dxgv" id="ContentPlaceHolder1_grdDeviceU" width="100%" style="border-collapse:separate;">
+	<tr>
+		<td style="padding-left:0px;padding-right:0px;padding-top:0px;padding-bottom:0px;"><table id="ContentPlaceHolder1_grdDeviceU_DXMainTable" class="dxgvTable_MetropolisBlue" onclick="ASPx.GTableClick(&#39;ContentPlaceHolder1_grdDeviceU&#39;, event);" ondblclick="ASPx.GVTableDblClick(&#39;ContentPlaceHolder1_grdDeviceU&#39;, event);" oncontextmenu="return ASPx.GVContextMenu(&#39;ContentPlaceHolder1_grdDeviceU&#39;,event);" width="100%" style="empty-cells:show;">
+			<tr id="ContentPlaceHolder1_grdDeviceU_DXHeadersRow0">
+				<td id="ContentPlaceHolder1_grdDeviceU_col0" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><table width="100%">
+					<tr>
+						<td class="dx-ac"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc" title="Selection state of all rows on this page"><input id="ContentPlaceHolder1_grdDeviceU_DXSelAllBtn0" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td>
+					</tr>
+				</table></td><td id="ContentPlaceHolder1_grdDeviceU_col1" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><table width="100%">
+					<tr>
+						<td>Serial Number</td><td width="1" style="text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td><td id="ContentPlaceHolder1_grdDeviceU_col2" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;border-right-width:0px;"><table width="100%">
+					<tr>
+						<td>Device Name</td><td width="1" style="text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXFilterRow" class="dxgvFilterRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac">&nbsp;</td><td class="dxgv"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_grdDeviceU_DXFREditorcol1" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_grdDeviceU_DXFREditorcol1_I" name="ctl00$ContentPlaceHolder1$grdDeviceU$DXFREditorcol1" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol1&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol1&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol1&#39;)" type="text" /></td>
+					</tr>
+				</table><script id="dxss_885527385" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_grdDeviceU_DXFREditorcol1',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_grdDeviceU_DXFREditorcol1','',{'uniqueID':'ctl00$ContentPlaceHolder1$grdDeviceU$DXFREditorcol1'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_grdDeviceU',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_grdDeviceU',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></td><td class="dxgv" style="border-right-width:0px;"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_grdDeviceU_DXFREditorcol2" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_grdDeviceU_DXFREditorcol2_I" name="ctl00$ContentPlaceHolder1$grdDeviceU$DXFREditorcol2" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol2&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol2&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_grdDeviceU_DXFREditorcol2&#39;)" type="text" /></td>
+					</tr>
+				</table><script id="dxss_341499856" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_grdDeviceU_DXFREditorcol2',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_grdDeviceU_DXFREditorcol2','',{'uniqueID':'ctl00$ContentPlaceHolder1$grdDeviceU$DXFREditorcol2'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_grdDeviceU',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_grdDeviceU',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow0" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,0],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn0" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260175</td><td class="dxgv" style="border-right-width:0px;">IN1</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow1" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,1],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn1" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260161</td><td class="dxgv" style="border-right-width:0px;">OUT1</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow2" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,2],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn2" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260156</td><td class="dxgv" style="border-right-width:0px;">OUT2</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow3" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,3],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn3" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260207</td><td class="dxgv" style="border-right-width:0px;">OUT3</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow4" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,4],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn4" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260242</td><td class="dxgv" style="border-right-width:0px;">IN3</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow5" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,5],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn5" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260256</td><td class="dxgv" style="border-right-width:0px;">IN4</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow6" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,6],1)"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn6" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv">TW30000006260265</td><td class="dxgv" style="border-right-width:0px;">OUT4</td>
+			</tr><tr id="ContentPlaceHolder1_grdDeviceU_DXDataRow7" class="dxgvDataRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac" onclick="ASPx.GVScheduleCommand(&#39;ContentPlaceHolder1_grdDeviceU&#39;,[&#39;Select&#39;,7],1)" style="border-bottom-width:0px;"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_grdDeviceU_DXSelBtn7" value="U" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxgv" style="border-bottom-width:0px;">TW30000006260127</td><td class="dxgv" style="border-right-width:0px;border-bottom-width:0px;">IN2</td>
+			</tr>
+		</table><table id="ContentPlaceHolder1_grdDeviceU_LP" class="dxgvLoadingPanel_MetropolisBlue" style="left:0px;top:0px;z-index:30000;display:none;">
+			<tr>
+				<td class="dx" style="padding-right:0px;"><img class="dxlp-loadingImage dxlp-imgPosLeft" src="/DXR.axd?r=1_58-Sh_st" alt="" style="vertical-align:middle;" /></td><td class="dx" style="padding-left:0px;"><span id="ContentPlaceHolder1_grdDeviceU_TL">Loading&hellip;</span></td>
+			</tr>
+		</table><div id="ContentPlaceHolder1_grdDeviceU_LD" class="dxgvLoadingDiv_MetropolisBlue" style="display:none;z-index:29999;position:absolute;">
+
+		</div><img id="ContentPlaceHolder1_grdDeviceU_IADD" class="dxGridView_gvDragAndDropArrowDown_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_grdDeviceU_IADU" class="dxGridView_gvDragAndDropArrowUp_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_grdDeviceU_IADL" class="dxGridView_gvDragAndDropArrowLeft_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_grdDeviceU_IADR" class="dxGridView_gvDragAndDropArrowRight_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_grdDeviceU_IDHF" class="dxGridView_gvDragAndDropHideColumn_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="Hide" style="position:absolute;visibility:hidden;top:-100px;" /></td>
+	</tr>
+</table><script id="dxss_797232643" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientGridView,'ContentPlaceHolder1_grdDeviceU','',{'callBack':function(arg) { WebForm_DoCallback('ctl00$ContentPlaceHolder1$grdDeviceU',arg,ASPx.Callback,'ContentPlaceHolder1_grdDeviceU',ASPx.CallbackError,true); },'uniqueID':'ctl00$ContentPlaceHolder1$grdDeviceU','stateObject':{'selection':'','callbackState':'o0SL/svtzaTgqqVYNmXaz3hSuqo7BQ1FEvCM+cB4GRg1WK0J3eJrTcivpLlXncP8afOiGBkve4P74JgZ715ExhiDKdaJA2eNNiJbC4at7aX2DQhZrWng6WqDkXdxzOvALzFGx0PqFyHiJfPPapsdBJ82TmllZiXRCDvjR9ImwtEQpRhb5U2JS77116wIk/xCkJmaiCIzHN+CJUONdha8l/7LY4/EczqCNQT2zNRxF0R5DqE7vtxdwSrROY4Kg18SrUkYHSc+jkFkLFbYK3UbmgrUgFUg0M/9SxaaXelCXvpWeMngF4wlwUTeXfeBbqxawV6f1pkYn35WzlG7+QKE3WkIAZibJMuRkocinW+uY9Q4cWGliW1+uiRYp0Z1wjtWLrsNd7k0EHqpyCXZjvoXyGLTgZbjFJUF7NtLLgAN6xC+kpBg+9mboKAitpy9GHbfnCdhrdPsDh4VosROs9oZ5kfJJHo68yBSixgc8R1znkFuB4Zv8bKIC5yeUp+lyuJM5PprV8lAxn5ktQDF01r0OhfUO3KMLmCnX61GD9yLP8uQze3mhATaKf+6f6S1ePSaURyk7rQarb5K7VFb6f18qB8RrI5biMrcLc62YnUHP2TSk40iuyt4PU/RQfLmPZurx7VpBF6NBUE5BjBjr5oQIjykCxfbKLhnDsWAcsrS8AkH7p4cyyIrB3INeNDqHTCZS+T1vllSPaZLAzFVGbql027nKZ180L2jha0r8RKjmNlWWguBD1iCNMNOSDzq1uzhjeLDCeWSw0T3yNCv56aS0bs10RtA7k7/Rzgy1CnCSxeNFwGpgnUWc1cbcP6XmldEm26sN0OCAH0A+dJjwkiFc0FuUZEjyxat6R7fOYu0utEDSA7DNbZ/tWfLV+V8QhJ1','keys':['TW30000006260175','TW30000006260161','TW30000006260156','TW30000006260207','TW30000006260242','TW30000006260256','TW30000006260265','TW30000006260127'],'focusedRow':''},'callBacksEnabled':true,'pageRowCount':8,'pageRowSize':10,'pageIndex':0,'pageCount':1,'selectedWithoutPageRowCount':0,'checkBoxImageProperties':{'4':['dxWeb_edtCheckBoxChecked_MetropolisBlue','dxWeb_edtCheckBoxUnchecked_MetropolisBlue','dxWeb_edtCheckBoxGrayed_MetropolisBlue'],'8':['dxWeb_edtCheckBoxCheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxUncheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxGrayedDisabled_MetropolisBlue']},'icbFocusedStyle':['dxICBFocused_MetropolisBlue',''],'visibleStartIndex':0,'focusedRowIndex':0,'allowFocusedRow':true,'allowSelectByItemClick':false,'allowSelectSingleRowOnly':false,'callbackOnFocusedRowChanged':false,'callbackOnSelectionChanged':false,'editState':0,'editItemVisibleIndex':-1,'searchPanelFilter':'','selectAllBtnStateWithoutPage':null,'selectAllSettings':[{'index':0,'mode':1}],'allowDelete':false,'allowEdit':false,'allowInsert':false,'columnProp':[[0,,,,0,,,,0,,1,,,0],[1,,,'DevID',,,,,1],[2,,,'Name',,,,,2]],'pendingEvents':['RaiseFocusedItemChanged'],'editMode':2,'indentColumnCount':0,'allowChangeColumnHierarchy':false,'allowMultiColumnAutoFilter':false,'autoFilterDelay':1200});
+ASPxClientGridBase.PostponeInitialize('ContentPlaceHolder1_grdDeviceU',({'styleInfo':{'sel':{'css':'dxgvSelectedRow_MetropolisBlue'},'fi':{'css':'dxgvFocusedRow_MetropolisBlue'},'ei':'<tr class="dxgvEditingErrorRow_MetropolisBlue">\r\n\t<td class="dxgv" data-colSpan="3" style="border-right-width:0px;"></td>\r\n</tr>','fc':{'css':'dxgvFocusedCell_MetropolisBlue'},'bec':{'css':'dxgvBatchEditCell_MetropolisBlue dxgv'},'bemc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgv'},'bemergmc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgvBatchEditCell_MetropolisBlue dxgv'},'bedi':{'css':'dxgvBatchEditDeletedItem_MetropolisBlue dxgv'},'fgi':{'css':'dxgvFocusedGroupRow_MetropolisBlue'}},'commandButtonIDs':[]}));
+
+//-->
+</script>
+
+                    </td>
+                </tr>
+                <tr>
+
+                    <td style="width: auto; padding: 15px" colspan="2" align="right">
+
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_btnUpload" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_btnUpload_I" class="dxb-hb" value="Upload" type="submit" name="ctl00$ContentPlaceHolder1$btnUpload" /><span class="dx-vam">Upload</span>
+	</div>
+</div><script id="dxss_929131164" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_btnUpload',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_btnUpload',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_btnUpload',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_btnUpload','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$btnUpload','serverEvents':['Click']});
+
+//-->
+</script>
+
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_btnUploadCmaera" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_btnUploadCmaera_I" class="dxb-hb" value="Upload Camera Image" type="submit" name="ctl00$ContentPlaceHolder1$btnUploadCmaera" /><span class="dx-vam">Upload Camera Image</span>
+	</div>
+</div><script id="dxss_2040226575" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_btnUploadCmaera',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_btnUploadCmaera',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddDisabledItems('ContentPlaceHolder1_btnUploadCmaera',[[['dxbDisabled_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_btnUploadCmaera',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_btnUploadCmaera','',{'uniqueID':'ctl00$ContentPlaceHolder1$btnUploadCmaera'},{'Click':function(s, e) {
+                        
+
+	 PageMethods.uploasClientClick(data_uri_tmp, document.getElementById('ContentPlaceHolder1_txtuserID_I').value ,document.getElementById('ContentPlaceHolder1_GrdDevice_I').value,document.getElementById('ContentPlaceHolder1_UserName_I').value);
+}});
+
+//-->
+</script>
+                    </td>
+
+                </tr>
+                <tr>
+                    <td style="width: auto; padding: 15px" colspan="2" align="right">
+                        <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_ASPxButton1" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_ASPxButton1_I" class="dxb-hb" value="Change User ID" type="submit" name="ctl00$ContentPlaceHolder1$ASPxButton1" /><span class="dx-vam">Change User ID</span>
+	</div>
+</div><script id="dxss_246677326" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxButton1',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_ASPxButton1',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxButton1',[[['dxbDisabled_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_ASPxButton1',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_ASPxButton1','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$ASPxButton1','serverEvents':['Click']},{'Click':function(s, e) {
+        if (confirm("Are You Sure Want To Update User ID ? All Old Data Will Be Removed.")) {
+return true;
+}
+return false;
+}});
+
+//-->
+</script>
+
+                    </td>
+
+                </tr>
+                <tr>
+                    <td style="width: auto; padding: 15px" colspan="2">
+                        <span class="dxeBase" id="ContentPlaceHolder1_lblStatus"><font color="Red" size="3"></font></span>
+
+                    </td>
+
+                </tr>
+            </table>
+            <div id="ContentPlaceHolder1_ASPxPopupControlCam_PW-1" class="dxpcLite_MetropolisBlue dxpclW dxpc-ie" style="cursor:default;z-index:10000;display:none;visibility:hidden;">
+	<div class="dxpc-mainDiv dxpc-shadow">
+		<div class="dxpc-header dxpc-withBtn" style="cursor:move;user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+			<div class="dxpc-closeBtn">
+				<img class="dxWeb_pcCloseButton_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="Close" />
+			</div><div class="dxpc-headerContent">
+				<span class="dxpc-headerText dx-vam">Online Camera</span>
+			</div><b class="dx-clear"></b>
+		</div><div class="dxpc-contentWrapper">
+			<div class="dxpc-content">
+				
+                        <table width="100%">
+                            <tr width="300px" height="300px">
+                                <td width="300px" height="300px">
+                                    <div id="camera" style="height: 300px; width: 300px; text-align: center;" />
+                                </td>
+                            </tr>
+                            <tr width="300px">
+                                <td align="center">
+                                    <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+					<div class="dxb">
+						<input id="ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap_I" class="dxb-hb" value="Take Snap" type="submit" name="ctl00$ContentPlaceHolder1$ASPxPopupControlCam$btnTakeSnap" /><span class="dx-vam">Take Snap</span>
+					</div>
+				</div><script id="dxss_1345093739" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap',[[['dxbDisabled_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_ASPxPopupControlCam_btnTakeSnap','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxPopupControlCam$btnTakeSnap'},{'Click':function(s, e) {
+	takeSnapShot();
+                        stopWeb();
+                        ASPxPopupControlCam.Hide();
+
+}});
+
+//-->
+</script>
+                                </td>
+                            </tr>
+                        </table>
+                    
+			</div>
+		</div>
+	</div>
+</div><div id="ContentPlaceHolder1_ASPxPopupControlCam_DXPWMB-1" class="dxpcModalBackLite_MetropolisBlue" style="z-index:9999;">
+
+</div><table id="ContentPlaceHolder1_ASPxPopupControlCam_LP" class="dxpcLoadingPanel_MetropolisBlue dxlpLoadingPanel_MetropolisBlue" style="left:0px;top:0px;z-index:30000;display:none;">
+	<tr>
+		<td class="dx" style="padding-right:0px;"><img class="dxlp-loadingImage dxlp-imgPosLeft" src="/DXR.axd?r=1_58-Sh_st" alt="" style="vertical-align:middle;" /></td><td class="dx" style="padding-left:0px;"><span id="ContentPlaceHolder1_ASPxPopupControlCam_TL">Loading&hellip;</span></td>
+	</tr>
+</table><div id="ContentPlaceHolder1_ASPxPopupControlCam_LD" class="dxpcLoadingDiv_MetropolisBlue dxlpLoadingDiv_MetropolisBlue dx-ft" style="left:0px;top:0px;z-index:29999;display:none;position:absolute;">
+
+</div><script id="dxss_1824647156" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxPopupControlCam',[[['dxpc-closeBtnHover'],[''],['HCB-1']]]);
+ASPx.createControl(ASPxClientPopupControl,'ContentPlaceHolder1_ASPxPopupControlCam','ASPxPopupControlCam',{'callBack':function(arg) { WebForm_DoCallback('ctl00$ContentPlaceHolder1$ASPxPopupControlCam',arg,ASPx.Callback,'ContentPlaceHolder1_ASPxPopupControlCam',ASPx.CallbackError,true); },'uniqueID':'ctl00$ContentPlaceHolder1$ASPxPopupControlCam','popupAnimationType':'fade','closeAction':'CloseButton','popupHorizontalAlign':'WindowCenter','popupVerticalAlign':'WindowCenter','isPopupPositionCorrectionOn':false,'allowDragging':true,'width':320,'widthFromServer':true,'height':320,'SSLSecureBlankUrl':'/DXR.axd?r=1_0-Sh_st'},{'CloseButtonClick':function(s, e) {
+	stopWeb();
+}});
+
+//-->
+</script>
+        </div>
+
+    </div>
+
+            </div>
+    </div>
+    </form>
+</body>
+</html>

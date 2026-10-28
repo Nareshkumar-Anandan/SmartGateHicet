@@ -1,0 +1,397 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
+<head><link rel="stylesheet" type="text/css" href="/DXR.axd?r=1_50,1_53,1_51,1_16,1_13,0_5669-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_5657-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_5665,0_5661,0_2219,0_2312-Sh_st" /><link rel="stylesheet" type="text/css" href="/DXR.axd?r=0_2317,0_2214,0_2221,0_2225,1_17-Sh_st" /><title>
+	iDMS(Version- 2.0.1)
+</title>
+    <script type="text/javascript"> 
+function display_c(){
+var refresh=1000; // Refresh rate in milli seconds
+mytime=setTimeout('display_ct()',refresh)
+}
+
+function display_ct() {
+    var x = new Date()
+    var x1 = x.toLocaleString();// changing the display to UTC string
+    document.getElementById('ct').innerHTML = x1;
+    tt = display_c();
+}
+</script>
+     <link rel="shortcut icon" href="Image/ICON.ico" />
+
+
+    <style type="text/css">
+        .style1
+        {
+            width: 100%;
+        }
+        .main_div{
+            position:relative;
+            margin-top:100px;
+        }
+    </style>
+</head>
+<body onload=display_ct();>
+    <form method="post" action="./TempManage.aspx" id="form1">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="9a5eyPtev59WEQZIJoOhj84cqlLK0Nmje2j8w3t8r0kzmoGM1030sUHccCXzZlBbuccUVE4pwO8hOvETkuTaLb04J8cDeuIxtET879uEORdcMoBxQkVmAmOiEFHHGH9V8aONn0qvTJo3Q7njnNLltK5of162dtEGOLgePxj5sAY0hnjAXxua2gnAr/q4GIA2PEx7p36mV5ktIjP4wi+N1vAtfIIVxducHs7Cc8w3tLdPzWEui02b566MJiZ7QCLPhXmZibie58lS2rLGKmosAySFbPb/BBKr+QlYY9k7SryMdtytmjIWOp96e2mAXe4jiulXhDBGD2qGrL53/OyiUeE/jBvjwYtwuGOIN5WrN9RY8LFWHkSkgwL0b1+xuqVIOgry01mGEnpxWsFM8m/H6CnEnfGFplqZFLOYO5p9A7QQZv7nyHUnVTSqfLtYFs4JPC4IcVglUEweWmhHMJ6qRKL8lWaKGUsd72KOag4yVehFAq9ZOB3pKFErulPwLEvtE+4xl6NhMVtTRA7UK9vKMKRcMFdGbOdeFDIxOGATBJyb4Wv5IipkdxcsXirdKYsn6LEV8DXjS+S5EOh4kiIiSB57GpT3YVp4zPO9Q/4eVc6nn3yybB91QdkxRoCEVdgHNhGNws335r533+UP/hS0FxjrP7J6ebpwVFrjbegs8azNNs6/BEkA4mOYWfAwYBUbfiaaA0USiOJ+4Myod7vkgsc7QvfQJid4nBi9Auneym/JwHgwYfYaWgtFQYShQfqowEgJ6B6KSSj191JJUSCDnwgNUCwgC6WtDD35OSSmUzlt1uGqA/DvzO9qX2DatWidmfxjgdexAYuDSciBOhO0oKvLiTLOHKB8EYtuSyOTCHE3G969A1f0sP3zJso2SuHZEQZ1peCUjRDslF3/McXyah17WMBzX9Jm5CPkh14Ro9VawyiYOR0+MfMP8h/Z2JD3HVEztPtGGuJCxhptBlHtvrfmr4K8RHZq5PMuaRKbiTQk+F3E9NODtGVb6fpdiHIzj49rmWkbbqgQ6oFvnn0UYz4mkr/FtaUVMHrtpA+R6OKc7/oukkjkfg8VzsjzjwHa1kJUYXEh6NFm3os/hv25t2oxDFTPbIuypFM7l1yAH+6vgyvI82csyEcudMGRGx3NRQ7W+t8P93qgNGtseb2Zb9SAlWClddkb4HIiEUkCulOo4s7AZv0ewXzNtjnoCrbc009fieKW3JjFALjR/0mOsXhwT2FNph20XQ1aovzxKXdPoFCqDsfeR8HEB4FAgCSD9ddk3MRgLpZg2lmd5aG+CGcioCOCCWopMKLgPxiFDerpTklWXqZfEbV8/1PKksL8tK4/FNfbRXfDIDyuHfzPp9HeEaFy8ueML+79K+ckLhAZWGXArpTptQnYTBvYqYPj6V+0mxO7NLUaeigX4lN9LM766kOwG45LGesFYAGkV+4KINFgWLvaemKJSS+AFSIIj3JLUAFiQ7iiugye4UPRy6uNeOaGp6oyGJj5EJEzvXbBL6nW/Wzpd9K2HydWVXCEKqPF9xIRXfHbenAHH8xC9VC1QRrXRyl/4cbf94UrqTn3X2iGsRyvy7vZxLObCZypA48uKut0D0AM/iti4BDBeFebpyYAEp7IoSwENr1VZBhZ7ixetsXAShZPthteGaMtktBTEWxGA8g5q1Nei7zjESjTTA2bQqkANHuz9HSM5GvFSQbXlZsPxqV/8wAZsHUjsfaEv3pLKoAywt0zLpX1fZpMTmN54inD0/23xwVMh4uqzhU2MjeJTwwqbpK4xcCYu3K6wI/qqNKNI1K0eqcNye8CskgjetCVMcS8HCF+eszwS4RcDRtnrWV+Ds43L6jqJSWb+ULAIIL7DBya7ZZmaa0sfzpAyALRV8LA3tSEz0jNLhIrcTngMck8k0aUyUMCplostvlNorP37hOACdNBg8QxbPEyqLuJz+avJwP1lLZF8u7squFIU5OukWLFRmgHmqIxRxJJCD6FpV9FO3BPxw==" />
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="D3F1F34C" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="5cVo51BcfkkUZmqZNNqT7q0Jm7PI5EsJb5Pu/RCZ4XMbqd6qsVj7vAaZ1jP6lUyIt7xU9bDq4KJCu9N2DSNd3CooD13glWiZkKuyZrikccUQfW5D+dDbMiEktVE/qtTmbaXWlPFBzYfIeiJ1E60taA==" />
+    <div>
+        <table class="style1" style="position:fixed;background-color:#ffffff;top: 0;z-index: 100;">
+            <tr>
+                <td>
+                     <input type="hidden"/><script id="dxis_206147641" src="/DXR.axd?r=1_211,1_304,1_185,1_298,1_221,1_188,1_182,1_290,1_296,1_279,1_198,1_209,1_201,1_196,1_254,1_256,1_263,1_235,1_248,1_244,1_242,1_251,1_239,1_247,1_217-Sh_st" type="text/javascript"></script><img class="dxeImage dxe-loadingImage" id="ASPxImage2" onload="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onabort="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" onerror="ASPx.ASPxImageLoad.OnLoad(this,&#39;&#39;,0,&#39;&#39;)" src="Image/logo.png" alt="" height="50%" width="50%" />
+                </td>
+                <td align="right" valign="bottom" style="padding-right:15px; font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: medium; font-weight: normal; color: #333333;">
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel1">Welcome:  </span>
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel2">ADMIN</span>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                     <span class="dxeBase_MetropolisBlue" id="ASPxLabel3">Login Time:  </span>
+                    <span class="dxeBase_MetropolisBlue" id="ASPxLabel4">23-10-2026 19:14:52</span>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                     <span class="dxeBase_MetropolisBlue" id="ASPxLabel5">Current Time:  </span>
+                    <span id='ct' style="font-family:Tahoma; font-size:small" ></span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="dxmLite_MetropolisBlue dxm-ltr">
+	<div class="dxm-main dxm-horizontal dxm-autoWidth" id="ASPxMenu1"><font size="2">
+		<ul class="dx dxm-image-l">
+			<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceListHTSeries.aspx"><font size="2"><img class="dxIcon_navigation_home_16x16office2013 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Home</span></font></a></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Master</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_reports_designreport_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_data_editdatasource_16x16office2013 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Template Management</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><div class="dxm-content dxm-hasText">
+				<img class="dxIcon_dashboards_locknavigation_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Admin</span>
+			</div></li><li class="dxm-separator" style="padding-left:0px;padding-right:0px;"><b></b></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Login.aspx"><font size="2"><img class="dxIcon_actions_reset2_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">LogOut</span></font></a></li>
+		</ul>
+	</font></div><b class="dx-clear"></b><div id="ASPxMenu1_DXM1_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Company.aspx"><font size="2"><img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Company</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Department.aspx"><font size="2"><img class="dxIcon_businessobjects_bodepartment_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Department</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="GroupMapping.aspx"><font size="2"><img class="dxIcon_reports_groupfieldcollection_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Group</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="Employee.aspx"><font size="2"><img class="dxIcon_people_publicfix_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Employee</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UploadExcel.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Excel Utility</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogUpload.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Upload</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UploadVoice.aspx"><font size="2"><img class="dxIcon_navigation_next_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Upload Voice</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM2_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceListHTseries.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device List</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserList.aspx"><font size="2"><img class="dxIcon_businessobjects_bocustomer_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device User List</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserPhoto.aspx"><font size="2"><img class="dxIcon_businessobjects_bocustomer_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device User Photo</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeletedUserDetails.aspx"><font size="2"><img class="dxIcon_businessobjects_bodetails_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Deleted/Blacklisted User</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceGroupMapping.aspx"><font size="2"><img class="dxIcon_navigation_documentmap_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Group Mapping</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DeviceCommand.aspx"><font size="2"><img class="dxIcon_miscellaneous_publish_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Device Commands</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="OnlineEnrollment.aspx"><font size="2"><img class="dxIcon_actions_show_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Remote Enrollment</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="FailedEntries.aspx"><font size="2"><img class="dxIcon_navigation_next_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Failed Entries</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM3_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="RealTimeLog.aspx"><font size="2"><img class="dxIcon_people_employee_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Real Time Log</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="RealTimeLogBio.aspx"><font size="2"><img class="dxIcon_people_employee_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Real Time Log</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogDataImage.aspx"><font size="2"><img class="dxIcon_actions_newgroup_16x16devav dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log(With Image)</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="LogData.aspx"><font size="2"><img class="dxIcon_mode_touchmode_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Log Management</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM4_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="TemplateManagement.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Bio Devies</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item dxm-selected"><div class="dxm-content dxm-hasText">
+					<img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Manual Download Upload</span>
+				</div><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="frmTemplatetZK.aspx"><font size="2"><img class="dxIcon_communication_phone_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">ZK Device</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="frmTemplateHTSeries.aspx"><font size="2"><img class="dxIcon_businessobjects_bodetails_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Template Manage</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="DownloadUser.aspx"><font size="2"><img class="dxIcon_actions_download_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Download User</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div><div id="ASPxMenu1_DXM5_" style="z-index:20002;display:none;">
+		<div class="dxm-popup"><font size="2">
+			<ul class="dx dxm-gutter">
+				<li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="UserManage.aspx"><font size="2"><img class="dxIcon_businessobjects_bouser_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">User Manage</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="CommonSetting.aspx"><font size="2"><img class="dxIcon_edit_customization_16x16gray dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Common Settings</span></font></a><b class="dx-clear"></b></li><li class="dxm-spacing"></li><li class="dxm-item"><a class="dxm-content dxm-hasText dx" href="ParallelDB.aspx"><font size="2"><img class="dxIcon_data_database_16x16 dxm-image dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" /><span class="dx-vam">Parallel DB</span></font></a><b class="dx-clear"></b></li>
+			</ul>
+		</font></div>
+	</div>
+</div><script id="dxss_1342265651" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ASPxMenu1',[[['dxm-hovered',''],['',''],['DXI0_','DXI1_','DXI1i0_','DXI1i1_','DXI1i2_','DXI1i3_','DXI1i4_','DXI1i5_','DXI1i6_','DXI2_','DXI2i0_','DXI2i1_','DXI2i2_','DXI2i3_','DXI2i4_','DXI2i5_','DXI2i7_','DXI2i8_','DXI3_','DXI3i0_','DXI3i1_','DXI3i2_','DXI3i3_','DXI4_','DXI4i0_','DXI4i2_','DXI4i3_','DXI4i4_','DXI5_','DXI5i0_','DXI5i1_','DXI5i2_','DXI6_'],['','T']],[[''],[''],['DXME1_','DXMBC1_','DXME2_','DXMBC2_','DXME3_','DXMBC3_','DXME4_','DXMBC4_','DXME5_','DXMBC5_']],[[''],[''],['DXI4i1_'],['','T']]]);
+ASPx.AddDisabledItems('ASPxMenu1',[[['dxm-disabled'],[''],['DXI0_','DXI1_','DXI1i0_','DXI1i1_','DXI1i2_','DXI1i3_','DXI1i4_','DXI1i5_','DXI1i6_','DXI2_','DXI2i0_','DXI2i1_','DXI2i2_','DXI2i3_','DXI2i4_','DXI2i5_','DXI2i7_','DXI2i8_','DXI3_','DXI3i0_','DXI3i1_','DXI3i2_','DXI3i3_','DXI4_','DXI4i0_','DXI4i1_','DXI4i2_','DXI4i3_','DXI4i4_','DXI5_','DXI5i0_','DXI5i1_','DXI5i2_','DXI6_'],['','T'],[[{'spriteCssClass':'dxIcon_navigation_home_16x16office2013_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodepartment_16x16_disabled'}],[{'spriteCssClass':'dxIcon_reports_groupfieldcollection_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_publicfix_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_next_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bocustomer_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bocustomer_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodetails_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_documentmap_16x16_disabled'}],[{'spriteCssClass':'dxIcon_miscellaneous_publish_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_show_16x16_disabled'}],[{'spriteCssClass':'dxIcon_navigation_next_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_reports_designreport_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_employee_16x16_disabled'}],[{'spriteCssClass':'dxIcon_people_employee_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_newgroup_16x16devav_disabled'}],[{'spriteCssClass':'dxIcon_mode_touchmode_16x16_disabled'}],[{'spriteCssClass':'dxIcon_data_editdatasource_16x16office2013_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_communication_phone_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bodetails_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_download_16x16_disabled'}],[{'spriteCssClass':'dxIcon_dashboards_locknavigation_16x16_disabled'}],[{'spriteCssClass':'dxIcon_businessobjects_bouser_16x16_disabled'}],[{'spriteCssClass':'dxIcon_edit_customization_16x16gray_disabled'}],[{'spriteCssClass':'dxIcon_data_database_16x16_disabled'}],[{'spriteCssClass':'dxIcon_actions_reset2_16x16_disabled'}]],['Img','PImg']]]);
+ASPx.createControl(ASPxClientMenu,'ASPxMenu1','',{'uniqueID':'ctl00$ASPxMenu1','renderData':{'':[[0],[1],[2],[3],[4],[5],[6]],'1':[[0],[1],[2],[3],[4],[5],[6]],'2':[[0],[1],[2],[3],[4],[5],[7],[8]],'3':[[0],[1],[2],[3]],'4':[[0],1,[2],[3],[4]],'5':[[0],[1],[2]]}},null,null,{'items':[{'name':'HomeMenu'},{'items':[{'name':'CompanyMaster'},{'name':'DepartmentMaster'},{'name':'DeviceGroup'},{'name':'EmployeeMaster'},{'name':'ExcelUtility'},{'name':'LogUpload'},{'name':'UploadVoice'}]},{'items':[{'name':'DevList'},{'name':'DevUserList'},{'name':'DevUserPhotoList'},{'name':'DeletedUser'},{'name':'GroupMapping'},{'name':'DeviceCommands'},{'visible':false},{'name':'RemoteEnroll'},{'name':'FailedEntries'}]},{'items':[{'name':'RealLog'},{'name':'RealTimeLogBio','clientVisible':false},{'name':'LogImage'},{'name':'Log'}]},{'name':'TemplateManagement','items':[{'name':'TempBio','clientVisible':false},{'name':'TempBioManual','clientVisible':false},{'name':'TempZK','clientVisible':false},{'name':'TempHT'},{'name':'TempHTU'}]},{'name':'AdminMenu','items':[{},{},{}]},{}]});
+
+//-->
+</script>
+                </td>
+            </tr>
+        </table>
+
+        <div class="main_div">
+        
+    <div style="border-style: solid; border-width: thin; border-color: inherit;">
+    <table class="dxeBinImgCPnlSys">
+        <tr>
+            <td>
+                &nbsp;</td>
+            <td>
+                
+            </td>
+           
+        </tr>
+        <tr>
+            <td align="left">
+                 <table>
+                    <tr>
+                        <td>
+                            
+                            </td>
+                         <td>
+                            
+                            </td>
+                        </tr>
+                     </table>      
+                </td>
+            <td align="center">
+                <table>
+                    <tr>
+                              <td>
+                            <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_ASPxButton3" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_ASPxButton3_I" class="dxb-hb" value="Download" type="submit" name="ctl00$ContentPlaceHolder1$ASPxButton3" /><img class="dxIcon_actions_download_16x16 dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" style="margin-right:4px;" /><span class="dx-vam">Download</span>
+	</div>
+</div><script id="dxss_845166165" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxButton3',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_ASPxButton3',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_ASPxButton3',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_ASPxButton3','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$ASPxButton3','serverEvents':['Click']});
+
+//-->
+</script>
+                        </td>
+                        <td>
+                            <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_ASPxButton1" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_ASPxButton1_I" class="dxb-hb" value="Upload" type="submit" name="ctl00$ContentPlaceHolder1$ASPxButton1" /><img class="dxIcon_miscellaneous_publish_16x16 dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" style="margin-right:4px;" /><span class="dx-vam">Upload</span>
+	</div>
+</div><script id="dxss_249551221" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxButton1',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_ASPxButton1',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_ASPxButton1',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_ASPxButton1','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$ASPxButton1','serverEvents':['Click']});
+
+//-->
+</script>
+                        </td>
+                         <td>
+                            
+
+                        </td>
+                             <td>
+                            <div class="dxbButton_MetropolisBlue dxbButtonSys dxbTSys" id="ContentPlaceHolder1_ASPxButton4" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;">
+	<div class="dxb">
+		<input id="ContentPlaceHolder1_ASPxButton4_I" class="dxb-hb" value="Download To DB" type="submit" name="ctl00$ContentPlaceHolder1$ASPxButton4" /><img class="dxIcon_miscellaneous_publish_16x16 dx-vam" src="/DXR.axd?r=1_58-Sh_st" alt="" style="margin-right:4px;" /><span class="dx-vam">Download To DB</span>
+	</div>
+</div><script id="dxss_1483078479" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ContentPlaceHolder1_ASPxButton4',[[['dxbButtonHover_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddPressedItems('ContentPlaceHolder1_ASPxButton4',[[['dxbButtonPressed_MetropolisBlue'],[''],[''],['','TC']]]);
+ASPx.AddSelectedItems('ContentPlaceHolder1_ASPxButton4',[[['dxbf'],[''],['CD']]]);
+ASPx.createControl(ASPxClientButton,'ContentPlaceHolder1_ASPxButton4','',{'autoPostBack':true,'uniqueID':'ctl00$ContentPlaceHolder1$ASPxButton4','serverEvents':['Click']});
+
+//-->
+</script>
+
+                        </td>
+                        <td>
+                            <table class="dxeBase_MetropolisBlue dxeTAR" id="ContentPlaceHolder1_chkAdmin">
+	<tr>
+		<td class="dxichCellSys"><span class="dxWeb_edtCheckBoxUnchecked_MetropolisBlue dxICheckBox_MetropolisBlue dxichSys dx-not-acc"><input id="ContentPlaceHolder1_chkAdmin_S" name="ctl00$ContentPlaceHolder1$chkAdmin" value="I" type="text" readonly="readonly" style="border-width:0;width:0;height:0;padding:0;margin:0;position:relative;background-color:transparent;display:block;" /></span></td><td class="dxichTextCellSys"><label>Make Admin</label></td>
+	</tr>
+</table><script id="dxss_1650224717" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientCheckBox,'ContentPlaceHolder1_chkAdmin','',{'uniqueID':'ctl00$ContentPlaceHolder1$chkAdmin','imageProperties':{'4':['dxWeb_edtCheckBoxChecked_MetropolisBlue','dxWeb_edtCheckBoxUnchecked_MetropolisBlue'],'8':['dxWeb_edtCheckBoxCheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxUncheckedDisabled_MetropolisBlue']},'icbFocusedStyle':['dxICBFocused_MetropolisBlue','']},null,null,{'decorationStyles':[]});
+
+//-->
+</script>
+                        </td>
+                    </tr>
+                </table>
+
+            
+
+            </td>
+     
+        </tr>
+        <tr>
+            <td >
+          
+
+   <table class="dxgvControl_MetropolisBlue dxgv" id="ContentPlaceHolder1_ASPxGridView1" width="100%" style="border-collapse:separate;">
+	<tr>
+		<td style="padding-left:0px;padding-right:0px;padding-top:0px;padding-bottom:0px;"><font size="3"><table id="ContentPlaceHolder1_ASPxGridView1_DXMainTable" class="dxgvTable_MetropolisBlue" onclick="ASPx.GTableClick(&#39;ContentPlaceHolder1_ASPxGridView1&#39;, event);" ondblclick="ASPx.GVTableDblClick(&#39;ContentPlaceHolder1_ASPxGridView1&#39;, event);" oncontextmenu="return ASPx.GVContextMenu(&#39;ContentPlaceHolder1_ASPxGridView1&#39;,event);" width="100%" style="empty-cells:show;">
+			<tr id="ContentPlaceHolder1_ASPxGridView1_DXHeadersRow0">
+				<td id="ContentPlaceHolder1_ASPxGridView1_col0" class="dxgvHeader_MetropolisBlue" width="8%" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3"> </font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView1_col1" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">User ID</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView1_col4" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Name</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView1_col2" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Enroll Mode</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView1_col3" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;border-right-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Device</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td>
+			</tr><tr id="ContentPlaceHolder1_ASPxGridView1_DXFilterRow" class="dxgvFilterRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac"><font size="3">&nbsp;</font></td><td class="dxgv"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1_I" name="ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol1" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_487808849" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView1_DXFREditorcol1','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol1'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView1',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView1',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td><td class="dxgv"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4_I" name="ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol4" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_1184079790" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView1_DXFREditorcol4','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol4'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView1',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView1',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td><td class="dxgv"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2_I" name="ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol2" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_1755963705" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView1_DXFREditorcol2','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol2'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView1',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView1',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td><td class="dxgv" style="border-right-width:0px;"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3_I" name="ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol3" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_1875486657" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView1_DXFREditorcol3','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView1$DXFREditorcol3'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView1',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView1',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td>
+			</tr><tr id="ContentPlaceHolder1_ASPxGridView1_DXEmptyRow" class="dxgvEmptyDataRow_MetropolisBlue">
+				<td class="dxgv" colspan="5" style="border-bottom-width:0px;"><font size="3"><div>
+					No data to display
+				</div></font></td>
+			</tr>
+		</table><table id="ContentPlaceHolder1_ASPxGridView1_LP" class="dxgvLoadingPanel_MetropolisBlue" style="left:0px;top:0px;z-index:30000;display:none;">
+			<tr>
+				<td class="dx" style="padding-right:0px;"><font size="3"><img class="dxlp-loadingImage dxlp-imgPosLeft" src="/DXR.axd?r=1_58-Sh_st" alt="" style="vertical-align:middle;" /></font></td><td class="dx" style="padding-left:0px;"><font size="3"><span id="ContentPlaceHolder1_ASPxGridView1_TL">Loading&hellip;</span></font></td>
+			</tr>
+		</table><div id="ContentPlaceHolder1_ASPxGridView1_LD" class="dxgvLoadingDiv_MetropolisBlue" style="display:none;z-index:29999;position:absolute;">
+
+		</div><img id="ContentPlaceHolder1_ASPxGridView1_IADD" class="dxGridView_gvDragAndDropArrowDown_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView1_IADU" class="dxGridView_gvDragAndDropArrowUp_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView1_IADL" class="dxGridView_gvDragAndDropArrowLeft_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView1_IADR" class="dxGridView_gvDragAndDropArrowRight_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView1_IDHF" class="dxGridView_gvDragAndDropHideColumn_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="Hide" style="position:absolute;visibility:hidden;top:-100px;" /></font></td>
+	</tr>
+</table><script id="dxss_978769418" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientGridView,'ContentPlaceHolder1_ASPxGridView1','',{'callBack':function(arg) { WebForm_DoCallback('ctl00$ContentPlaceHolder1$ASPxGridView1',arg,ASPx.Callback,'ContentPlaceHolder1_ASPxGridView1',ASPx.CallbackError,true); },'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView1','stateObject':{'selection':'','callbackState':'CGYjyjC+PJ5WlcFcLE5GJZV9O+Fbt2Yn1OxqI/kFP9YDwMaWm3hg798Cf/12fjRsSHBZcbzMSQAdLHFLtBTi7nqU521NjYn0pQrgqRiUG8q7JIL2+5lwrgRV0SjVdGal0AeSe5OKGTWJWVQeaCDwqsqQqMiruCDz4EWWxjt1Zn+z0/Nuru9fThNDJXgVyN1IQ5s3m6usUxTkIoaTHX11FiNpFhGd31m+B8t7XlNPDDW9WniIzVBjHpNQ76Y5IPSPvzk0ljBekw936BoKQF9jOqIjY1s1aHmezWxQ38uQREyJ5jZoSJgabvYuvlaVc/OkJjmAEYMbMmu4lu63MyoHjcEbaR4eRyWb7gfJKEMsMlk9Og2OjtXDAw5fCjdKEpOAt0EDSVDAvzgVYP7qNexzUkAdtj1FkLA76ayFDT9iNHZojI8a9hnfPu4UHNdiwKnUHjn760qtwrI0YlEJaAmVRmf3dKG/u4LeOc89oLkyi8eibwNYKEj8+dj02lPZmAWFZssV+ZnpZ1U0ZlLhEzxrZg==','keys':[]},'callBacksEnabled':true,'pageRowCount':0,'pageRowSize':1000,'pageIndex':0,'pageCount':0,'selectedWithoutPageRowCount':0,'checkBoxImageProperties':{'4':['dxWeb_edtCheckBoxChecked_MetropolisBlue','dxWeb_edtCheckBoxUnchecked_MetropolisBlue','dxWeb_edtCheckBoxGrayed_MetropolisBlue'],'8':['dxWeb_edtCheckBoxCheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxUncheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxGrayedDisabled_MetropolisBlue']},'icbFocusedStyle':['dxICBFocused_MetropolisBlue',''],'visibleStartIndex':0,'focusedRowIndex':-1,'allowFocusedRow':false,'allowSelectByItemClick':false,'allowSelectSingleRowOnly':false,'callbackOnFocusedRowChanged':false,'callbackOnSelectionChanged':false,'editState':0,'editItemVisibleIndex':-1,'searchPanelFilter':'','allowDelete':false,'allowEdit':false,'allowInsert':false,'columnProp':[[0,,,,0,,,,0,,1,,,0],[1,,,'Biometric ID',,2,,,1],[2,,,'Enroll Mode',,,,,3],[3,,,'Cloud ID',,,,,4],[4,,,'NAME',,,,,2]],'editMode':2,'indentColumnCount':0,'allowChangeColumnHierarchy':false,'allowMultiColumnAutoFilter':false,'autoFilterDelay':1200});
+ASPxClientGridBase.PostponeInitialize('ContentPlaceHolder1_ASPxGridView1',({'styleInfo':{'sel':{'css':'dxgvSelectedRow_MetropolisBlue'},'fi':{'css':'dxgvFocusedRow_MetropolisBlue'},'ei':'<tr class="dxgvEditingErrorRow_MetropolisBlue">\r\n\t<td class="dxgv" data-colSpan="5" style="border-right-width:0px;"></td>\r\n</tr>','fc':{'css':'dxgvFocusedCell_MetropolisBlue'},'bec':{'css':'dxgvBatchEditCell_MetropolisBlue dxgv'},'bemc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgv'},'bemergmc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgvBatchEditCell_MetropolisBlue dxgv'},'bedi':{'css':'dxgvBatchEditDeletedItem_MetropolisBlue dxgv'},'fgi':{'css':'dxgvFocusedGroupRow_MetropolisBlue'}},'commandButtonIDs':[]}));
+
+//-->
+</script>
+
+            </td>
+                     <td valign="top" >
+                   <table class="dxgvControl_MetropolisBlue dxgv" id="ContentPlaceHolder1_ASPxGridView2" width="100%" style="border-collapse:separate;">
+	<tr>
+		<td style="padding-left:0px;padding-right:0px;padding-top:0px;padding-bottom:0px;"><font size="3"><table id="ContentPlaceHolder1_ASPxGridView2_DXMainTable" class="dxgvTable_MetropolisBlue" onclick="ASPx.GTableClick(&#39;ContentPlaceHolder1_ASPxGridView2&#39;, event);" ondblclick="ASPx.GVTableDblClick(&#39;ContentPlaceHolder1_ASPxGridView2&#39;, event);" oncontextmenu="return ASPx.GVContextMenu(&#39;ContentPlaceHolder1_ASPxGridView2&#39;,event);" width="100%" style="empty-cells:show;">
+			<tr id="ContentPlaceHolder1_ASPxGridView2_DXHeadersRow0">
+				<td id="ContentPlaceHolder1_ASPxGridView2_col0" class="dxgvHeader_MetropolisBlue" width="8%" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3"> </font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView2_col1" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Device ID</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView2_col2" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Device Name</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td><td id="ContentPlaceHolder1_ASPxGridView2_col3" class="dxgvHeader_MetropolisBlue" style="border-top-width:0px;border-left-width:0px;border-right-width:0px;"><font size="3"><table width="100%">
+					<tr>
+						<td><font size="3">Group</font></td><td width="1" style="text-align:right;"><font size="3"><span class="dx-vam">&nbsp;</span></font></td>
+					</tr>
+				</table></font></td>
+			</tr><tr id="ContentPlaceHolder1_ASPxGridView2_DXFilterRow" class="dxgvFilterRow_MetropolisBlue">
+				<td class="dxgvCommandColumn_MetropolisBlue dxgv dx-ac"><font size="3">&nbsp;</font></td><td class="dxgv"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1_I" name="ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol1" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_1858484037" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView2_DXFREditorcol1','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol1'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView2',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView2',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td><td class="dxgv"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2_I" name="ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol2" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_1844833207" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView2_DXFREditorcol2','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol2'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView2',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView2',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td><td class="dxgv" style="border-right-width:0px;"><font size="3"><table class="dxeTextBoxSys dxeTextBox_MetropolisBlue dxeTextBoxDefaultWidthSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3" width="100%">
+					<tr>
+						<td class="dxic" width="100%"><font size="3"><input class="dxeEditArea_MetropolisBlue dxeEditAreaSys" id="ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3_I" name="ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol3" onfocus="ASPx.EGotFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3&#39;)" onblur="ASPx.ELostFocus(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3&#39;)" onchange="ASPx.EValueChanged(&#39;ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3&#39;)" type="text" /></font></td>
+					</tr>
+				</table><script id="dxss_541443840" type="text/javascript">
+<!--
+ASPx.AddDisabledItems('ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3',[[['dxeDisabled_MetropolisBlue'],[''],['','I']]]);
+ASPx.createControl(ASPxClientTextBox,'ContentPlaceHolder1_ASPxGridView2_DXFREditorcol3','',{'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView2$DXFREditorcol3'},{'ValueChanged':function(s, event) { ASPx.GVFilterChanged('ContentPlaceHolder1_ASPxGridView2',s); },'KeyDown':function(s, event) { ASPx.GVFilterKeyPress('ContentPlaceHolder1_ASPxGridView2',s,event); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MetropolisBlue','cssText':''}]});
+
+//-->
+</script></font></td>
+			</tr><tr id="ContentPlaceHolder1_ASPxGridView2_DXEmptyRow" class="dxgvEmptyDataRow_MetropolisBlue">
+				<td class="dxgv" colspan="4" style="border-bottom-width:0px;"><font size="3"><div>
+					No data to display
+				</div></font></td>
+			</tr>
+		</table><table id="ContentPlaceHolder1_ASPxGridView2_LP" class="dxgvLoadingPanel_MetropolisBlue" style="left:0px;top:0px;z-index:30000;display:none;">
+			<tr>
+				<td class="dx" style="padding-right:0px;"><font size="3"><img class="dxlp-loadingImage dxlp-imgPosLeft" src="/DXR.axd?r=1_58-Sh_st" alt="" style="vertical-align:middle;" /></font></td><td class="dx" style="padding-left:0px;"><font size="3"><span id="ContentPlaceHolder1_ASPxGridView2_TL">Loading&hellip;</span></font></td>
+			</tr>
+		</table><div id="ContentPlaceHolder1_ASPxGridView2_LD" class="dxgvLoadingDiv_MetropolisBlue" style="display:none;z-index:29999;position:absolute;">
+
+		</div><img id="ContentPlaceHolder1_ASPxGridView2_IADD" class="dxGridView_gvDragAndDropArrowDown_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView2_IADU" class="dxGridView_gvDragAndDropArrowUp_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView2_IADL" class="dxGridView_gvDragAndDropArrowLeft_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView2_IADR" class="dxGridView_gvDragAndDropArrowRight_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="|" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ContentPlaceHolder1_ASPxGridView2_IDHF" class="dxGridView_gvDragAndDropHideColumn_MetropolisBlue" src="/DXR.axd?r=1_58-Sh_st" alt="Hide" style="position:absolute;visibility:hidden;top:-100px;" /></font></td>
+	</tr>
+</table><script id="dxss_1226457487" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientGridView,'ContentPlaceHolder1_ASPxGridView2','',{'callBack':function(arg) { WebForm_DoCallback('ctl00$ContentPlaceHolder1$ASPxGridView2',arg,ASPx.Callback,'ContentPlaceHolder1_ASPxGridView2',ASPx.CallbackError,true); },'uniqueID':'ctl00$ContentPlaceHolder1$ASPxGridView2','stateObject':{'selection':'','callbackState':'4YoYvqt+2PdDe8rIQ4A51F6oOB9b5pJv8PO5h0m3tOshpKPxWSHpCkRssRfIp/v2lykVP/ntnbyRz25P01IZdD5A2LHx2Vmlg0SXF1/TOoQG528dIWCEPlU07tE4v6lPgVbKWKzKZgrY1Xp+XXW/6VlxS3tCtqTe5ZPXZ3fuEiNyUaNZNrEX2/IyuuoxikjjIdYh1JHKEZilnzJFGYXup1nhdHQIiojpMYvbSvqxBsqJO9wOz6Oo0iT9zxVnNF8LbBrT4An/nvq+N2p3o5HHx4AkAEh/BfL8qYvWU3I8MlXi/dN9kdGIoTUxnK1F+e/rH4mBU+uiYZxWQG0dafb0Idc+XD0mnUvWiraO9s+IivuZL1bHk96cffF+KhdcmaOYHNjfyi9Mmo+KhAXVtQfAwROmEa4m1o6SGbKo/wFWlpOJNHAJBMAq+kM8EKSOH2cxINtOeKv/IolHhIhnKoqTdicAmFM1Tnx6LspfrR+m6aKWAhg58lS5Fx8Z5k1S4kFh','keys':[]},'callBacksEnabled':true,'pageRowCount':0,'pageRowSize':50,'pageIndex':0,'pageCount':0,'selectedWithoutPageRowCount':0,'checkBoxImageProperties':{'4':['dxWeb_edtCheckBoxChecked_MetropolisBlue','dxWeb_edtCheckBoxUnchecked_MetropolisBlue','dxWeb_edtCheckBoxGrayed_MetropolisBlue'],'8':['dxWeb_edtCheckBoxCheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxUncheckedDisabled_MetropolisBlue','dxWeb_edtCheckBoxGrayedDisabled_MetropolisBlue']},'icbFocusedStyle':['dxICBFocused_MetropolisBlue',''],'visibleStartIndex':0,'focusedRowIndex':-1,'allowFocusedRow':false,'allowSelectByItemClick':false,'allowSelectSingleRowOnly':false,'callbackOnFocusedRowChanged':false,'callbackOnSelectionChanged':false,'editState':0,'editItemVisibleIndex':-1,'searchPanelFilter':'','allowDelete':false,'allowEdit':false,'allowInsert':false,'columnProp':[[0,,,,0,,,,0,,1,,,0],[1,,,'device_id',,,,,1],[2,,,'device_name',,,,,2,,,,,,,,,,,,2],[3,,,'GroupID',,,,,2,,,,,,,,,,,,3]],'editMode':2,'indentColumnCount':0,'allowChangeColumnHierarchy':false,'allowMultiColumnAutoFilter':false,'autoFilterDelay':1200});
+ASPxClientGridBase.PostponeInitialize('ContentPlaceHolder1_ASPxGridView2',({'styleInfo':{'sel':{'css':'dxgvSelectedRow_MetropolisBlue'},'fi':{'css':'dxgvFocusedRow_MetropolisBlue'},'ei':'<tr class="dxgvEditingErrorRow_MetropolisBlue">\r\n\t<td class="dxgv" data-colSpan="4" style="border-right-width:0px;"></td>\r\n</tr>','fc':{'css':'dxgvFocusedCell_MetropolisBlue'},'bec':{'css':'dxgvBatchEditCell_MetropolisBlue dxgv'},'bemc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgv'},'bemergmc':{'css':'dxgvBatchEditModifiedCell_MetropolisBlue dxgvBatchEditCell_MetropolisBlue dxgv'},'bedi':{'css':'dxgvBatchEditDeletedItem_MetropolisBlue dxgv'},'fgi':{'css':'dxgvFocusedGroupRow_MetropolisBlue'}},'commandButtonIDs':[]}));
+
+//-->
+</script>
+            </td>
+        </tr>
+    </table>
+    </div>
+
+            </div>
+    </div>
+    </form>
+</body>
+</html>
