@@ -82,12 +82,12 @@ class AutoRegisterService {
       });
     });
 
-    this.server.listen(this.port, '0.0.0.0', () => {
-      console.log(`[AUTO-REGISTRATION] Auto-Registration TCP Listener active on port ${this.port}`);
+    this.server.on('error', err => {
+      console.error('[AUTO-REGISTRATION] Server error on port ' + this.port + ':', err.message);
     });
 
-    this.server.on('error', err => {
-      console.error('[AUTO-REGISTRATION] Server error:', err.message);
+    this.server.listen(this.port, '0.0.0.0', () => {
+      console.log(`[AUTO-REGISTRATION] Auto-Registration TCP Listener active on port ${this.port}`);
     });
   }
 
