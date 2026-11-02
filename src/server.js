@@ -85,7 +85,7 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 if (process.env.NODE_ENV !== 'test') {
-  const server = app.listen(PORT, async () => {
+  const server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`========================================================`);
     console.log(`SmartGate Backend Server running on port ${PORT}`);
     console.log(`API Base URL: http://localhost:${PORT}${API_PREFIX}`);

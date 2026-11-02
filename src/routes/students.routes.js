@@ -30,6 +30,7 @@ router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'WARDE
 
 // TimeWatch Terminal Hardware Integration for Students
 router.post('/import-from-terminal', authenticateToken, requireRole('SUPER_ADMIN', 'WARDEN'), studentsController.importStudentsFromTerminal);
+router.post('/sync-terminal-photos', authenticateToken, requireRole('SUPER_ADMIN', 'WARDEN'), studentsController.syncTerminalPhotos);
 router.post('/sync-all-to-terminals', authenticateToken, requireRole('SUPER_ADMIN', 'WARDEN'), studentsController.syncAllStudentsToTerminals);
 router.post('/:id/timewatch-sync', authenticateToken, requireRole('SUPER_ADMIN', 'WARDEN'), studentsController.syncStudentToTerminal);
 router.post('/:id/timewatch-remote-enroll', authenticateToken, requireRole('SUPER_ADMIN', 'WARDEN'), studentsController.remoteEnrollStudent);

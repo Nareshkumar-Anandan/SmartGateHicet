@@ -16,7 +16,7 @@ class AdmsService {
   /**
    * Queue a remote command (e.g. AC_UNLK for barrier open) to be picked up by the terminal
    */
-  queueCommand(serialNumber, commandStr) {
+  queueCommand(serialNumber, commandStr, silent = false) {
     const sn = this.normalizeSn(serialNumber);
     if (!this.commandQueues.has(sn)) {
       this.commandQueues.set(sn, []);
@@ -28,8 +28,10 @@ class AdmsService {
       timestamp: Date.now()
     };
     this.commandQueues.get(sn).push(cmdObj);
-    const preview = commandStr.length > 100 ? commandStr.slice(0, 100) + '...' : commandStr;
-    console.log(`[ADMS QUEUE] Command queued for ${sn}: C:${cmdId}:${preview}`);
+    if (!silent) {
+      const preview = commandStr.length > 100 ? commandStr.slice(0, 100) + '...' : commandStr;
+      console.log(`[ADMS QUEUE] Command queued for ${sn}: C:${cmdId}:${preview}`);
+    }
     return cmdId;
   }
 

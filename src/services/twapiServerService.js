@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('../config/database');
 
 class TwapiServerService {
@@ -298,6 +300,95 @@ class TwapiServerService {
       });
     });
 
+    // 5c. GetUserImage (Endpoint 5 in TWAPI 2.0: retrieves face image of user from specified device)
+    const handleGetUserImage = async (req, res) => {
+      const { DeviceID, UserID } = { ...(req.query || {}), ...(req.body || {}) };
+      if (!UserID) {
+        return res.status(400).json({
+          success: false,
+          message: 'UserID is required.'
+        });
+      }
+
+      try {
+        const cleanUid = String(UserID).trim();
+
+        // 1. Check local device memory
+        if (DeviceID && this.deviceUsers.has(DeviceID) && this.deviceUsers.get(DeviceID).has(cleanUid)) {
+          const u = this.deviceUsers.get(DeviceID).get(cleanUid);
+          if (u.FaceTemplate) {
+            return res.json({
+              success: true,
+              UserID: cleanUid,
+              DeviceID: DeviceID,
+              Image: u.FaceTemplate,
+              message: 'Face image retrieved from device memory.'
+            });
+          }
+        }
+
+        // 2. Check students table in database
+        const [rows] = await pool.query(
+          'SELECT student_id, biometric_device_id, photo_avatar, photo_url FROM students WHERE biometric_device_id = ? OR student_id = ? OR student_id = ? LIMIT 1',
+          [cleanUid, cleanUid, `TW-${cleanUid}`]
+        );
+
+        if (rows.length > 0) {
+          const s = rows[0];
+          if (s.photo_avatar) {
+            const diskPath = path.resolve(__dirname, '../../', s.photo_avatar.replace(/^\/+/, ''));
+            if (fs.existsSync(diskPath)) {
+              const fileBuf = fs.readFileSync(diskPath);
+              return res.json({
+                success: true,
+                UserID: cleanUid,
+                DeviceID: DeviceID || 'TW30000006260161',
+                Image: fileBuf.toString('base64'),
+                message: 'Face image retrieved successfully from local photo storage.'
+              });
+            }
+          }
+
+          if (s.photo_url && s.photo_url.startsWith('data:image')) {
+            const rawBase64 = s.photo_url.split(',')[1] || s.photo_url;
+            return res.json({
+              success: true,
+              UserID: cleanUid,
+              DeviceID: DeviceID || 'TW30000006260161',
+              Image: rawBase64,
+              message: 'Face image retrieved successfully from database record.'
+            });
+          }
+        }
+
+        // 3. Fallback: fetch directly from TimeWatch iDMS server UserPhoto.aspx
+        const timewatchIdmsService = require('./timewatchIdmsService');
+        const fetched = await timewatchIdmsService.fetchUserPhotoByPin(cleanUid);
+        if (fetched && fetched.base64) {
+          return res.json({
+            success: true,
+            UserID: cleanUid,
+            DeviceID: DeviceID || 'TW30000006260161',
+            Image: fetched.base64,
+            message: 'Face image retrieved live from TimeWatch server.'
+          });
+        }
+
+        return res.status(404).json({
+          success: false,
+          message: `Face image for user ${cleanUid} not found on terminal ${DeviceID || 'ALL'}.`
+        });
+      } catch (err) {
+        return res.status(500).json({
+          success: false,
+          message: `Error retrieving user image: ${err.message}`
+        });
+      }
+    };
+
+    this.app.get('/TimeWatchAPI/GetUserImage', handleGetUserImage);
+    this.app.post('/TimeWatchAPI/GetUserImage', handleGetUserImage);
+
     // 6. GetPunchData
     this.app.post('/TimeWatchAPI/GetPunchData', async (req, res) => {
       const { FromDate, ToDate, DeviceID, UserID } = req.body || {};
@@ -345,31 +436,6 @@ class TwapiServerService {
         });
       }
     });
-
-    // 7. GetUserImage
-    const handleGetUserImage = (req, res) => {
-      const DeviceID = req.query.DeviceID || req.body?.DeviceID;
-      const UserID = req.query.UserID || req.body?.UserID;
-
-      if (!DeviceID || !UserID) {
-        return res.status(400).json({
-          success: false,
-          message: 'Both DeviceID and UserID are mandatory.'
-        });
-      }
-
-      // Small sample 1x1 transparent PNG base64 or SVG placeholder
-      const sampleBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
-      return res.json({
-        success: true,
-        DeviceID,
-        UserID,
-        Image: sampleBase64
-      });
-    };
-    this.app.get('/TimeWatchAPI/GetUserImage', handleGetUserImage);
-    this.app.post('/TimeWatchAPI/GetUserImage', handleGetUserImage);
 
     // 8. PullLogs
     this.app.post('/TimeWatchAPI/PullLogs', (req, res) => {

@@ -244,13 +244,17 @@ async function createStudent(req, res, next) {
     }
 
     let assignedBioId = biometric_device_id ? String(biometric_device_id).trim() : null;
-    if (!assignedBioId) {
-      // Find highest numeric PIN currently in use so we assign next clean integer ID (e.g. 8, 9, 10...)
-      const [[maxRow]] = await pool.query(
-        "SELECT MAX(CAST(biometric_device_id AS UNSIGNED)) as maxPin FROM students WHERE biometric_device_id REGEXP '^[0-9]+$'"
-      );
-      const nextPin = Math.max((maxRow?.maxPin || 7), 7) + 1;
-      assignedBioId = String(nextPin);
+    if (!assignedBioId || !/^\d{1,9}$/.test(assignedBioId)) {
+      if (/^\d{1,9}$/.test(String(student_id).trim())) {
+        assignedBioId = String(student_id).trim();
+      } else {
+        // Find highest numeric PIN currently in use so we assign next clean integer ID (e.g. 8, 9, 10...)
+        const [[maxRow]] = await pool.query(
+          "SELECT MAX(CAST(biometric_device_id AS UNSIGNED)) as maxPin FROM students WHERE biometric_device_id REGEXP '^[0-9]{1,9}$'"
+        );
+        const nextPin = Math.max((maxRow?.maxPin || 7), 7) + 1;
+        assignedBioId = String(nextPin);
+      }
     }
 
     let newStudentId = null;
@@ -340,7 +344,31 @@ async function createStudent(req, res, next) {
       const timewatchApiService = require('../services/timewatchApiService');
       const admsService = require('../services/admsService');
       const timewatchIdmsService = require('../services/timewatchIdmsService');
+      const sharp = require('sharp');
+      const fs = require('fs');
+      const path = require('path');
       const [devices] = await pool.query("SELECT * FROM gate_devices WHERE status != 'OFFLINE'");
+
+      let photoBase64 = '';
+      let photoLength = 0;
+      let resolvedPhotoPath = null;
+
+      if (finalPhotoAvatar) {
+        resolvedPhotoPath = path.resolve(__dirname, '../../uploads/students', path.basename(finalPhotoAvatar));
+        if (fs.existsSync(resolvedPhotoPath)) {
+          try {
+            const rawBuf = fs.readFileSync(resolvedPhotoPath);
+            const optBuf = await sharp(rawBuf)
+              .resize(352, 432, { fit: 'cover' })
+              .jpeg({ quality: 95 })
+              .toBuffer();
+            photoBase64 = optBuf.toString('base64');
+            photoLength = optBuf.length;
+          } catch (sharpErr) {
+            console.warn('[REGISTER STUDENT PHOTO WARN]', sharpErr.message);
+          }
+        }
+      }
 
       for (const dev of devices) {
         // Queue real ADMS hardware command
@@ -349,12 +377,20 @@ async function createStudent(req, res, next) {
           `DATA UPDATE USER PIN=${assignedBioId}\tName=${first_name.trim()} ${last_name.trim()}\tCard=${card_number ? card_number.trim() : ''}\tPri=0\tGrp=1`
         );
 
+        if (photoBase64) {
+          const photoCmd1 = `DATA UPDATE USERPHOTO PIN=${assignedBioId}\tFileName=${assignedBioId}.jpg\tSize=${photoLength}\tContent=${photoBase64}`;
+          const photoCmd2 = `DATA UPDATE BIOPHOTO PIN=${assignedBioId}\tType=9\tSize=${photoLength}\tContent=${photoBase64}`;
+          admsService.queueCommand(dev.serial_number, photoCmd1);
+          admsService.queueCommand(dev.serial_number, photoCmd2);
+        }
+
         // Also push via TWAPI AddUser
         timewatchApiService.addUser({
           UserID: assignedBioId,
           Name: `${first_name.trim()} ${last_name.trim()}`,
           DeviceID: dev.serial_number,
-          Card: card_number ? card_number.trim() : ''
+          Card: card_number ? card_number.trim() : '',
+          FaceTemplate: photoBase64 || ''
         }).catch(err => console.warn(`[AUTO-SYNC TWAPI WARN] ${dev.serial_number}:`, err.message));
 
         pushedDeviceCount++;
@@ -366,7 +402,8 @@ async function createStudent(req, res, next) {
         name: `${first_name.trim()} ${last_name.trim()}`,
         department: department.trim(),
         cardNumber: card_number ? card_number.trim() : '',
-        photoPath: finalPhotoAvatar
+        photoPath: resolvedPhotoPath || finalPhotoAvatar,
+        photoBase64: photoBase64
       }).then(() => {
         console.log(`[TIMEWATCH iDMS SYNC] Successfully uploaded ${first_name} ${last_name} (${assignedBioId}) with photo to turnstiles.`);
       }).catch(err => {
@@ -592,7 +629,15 @@ async function syncStudentToTerminal(req, res, next) {
     const fs = require('fs');
     const path = require('path');
     const results = [];
-    const bioId = student.biometric_device_id || String(student.id);
+    let bioId = student.biometric_device_id ? String(student.biometric_device_id).trim() : null;
+    if (!bioId || !/^\d{1,9}$/.test(bioId)) {
+      if (/^\d{1,9}$/.test(String(student.student_id).trim())) {
+        bioId = String(student.student_id).trim();
+      } else {
+        bioId = String(student.id);
+      }
+      await pool.query('UPDATE students SET biometric_device_id = ? WHERE id = ?', [bioId, id]).catch(() => {});
+    }
 
     // 1. Resolve photo from DB or disk fallback
     let resolvedPhotoPath = null;
@@ -724,101 +769,29 @@ async function syncStudentToTerminal(req, res, next) {
 
 async function syncAllStudentsToTerminals(req, res, next) {
   try {
-    const [students] = await pool.query('SELECT * FROM students WHERE is_active = 1');
+    const [students] = await pool.query('SELECT id, student_id, first_name, last_name, biometric_device_id, card_number FROM students WHERE is_active = 1');
     const [devices] = await pool.query("SELECT * FROM gate_devices WHERE status != 'OFFLINE'");
     const admsService = require('../services/admsService');
-    const timewatchApiService = require('../services/timewatchApiService');
     const timewatchIdmsService = require('../services/timewatchIdmsService');
-    const sharp = require('sharp');
-    const fs = require('fs');
-    const path = require('path');
-
-    // 1. Trigger TimeWatch iDMS hardware upload across all turnstile machines
-    let idmsResult = null;
-    try {
-      idmsResult = await timewatchIdmsService.pushAllStudentsToTurnstiles();
-    } catch (err) {
-      console.warn('[TIMEWATCH IDMS PUSH ALL WARN]', err.message);
-      idmsResult = { success: false, error: err.message };
-    }
 
     let totalCommands = 0;
-    const studentsWithPhotos = [];
-
     for (const s of students) {
       const bioId = s.biometric_device_id || String(s.id);
-
-      // Resolve photo if available
-      let resolvedPhotoPath = null;
-      let photoBase64 = '';
-      let photoLength = 0;
-
-      const candidates = [
-        s.photo_avatar,
-        s.photo_url,
-        path.resolve(__dirname, '../../uploads/students', `${s.student_id}.jpg`),
-        path.resolve(__dirname, '../../uploads/students', `${s.student_id}.jpeg`),
-        path.resolve(__dirname, '../../uploads/students', `${s.student_id}.png`),
-        path.resolve(__dirname, '../../uploads/students', `${s.id}.jpg`)
-      ].filter(Boolean);
-
-      for (const cPath of candidates) {
-        let p = cPath;
-        if (!fs.existsSync(p)) {
-          p = path.resolve(__dirname, '../../', String(cPath).replace(/^[/\\]+/, ''));
-          if (!fs.existsSync(p)) {
-            p = path.resolve(__dirname, '../../uploads/students', path.basename(cPath));
-          }
-        }
-        if (fs.existsSync(p)) {
-          resolvedPhotoPath = p;
-          break;
-        }
-      }
-
-      if (resolvedPhotoPath) {
-        try {
-          const rawBuf = fs.readFileSync(resolvedPhotoPath);
-          const optBuf = await sharp(rawBuf)
-            .resize(352, 432, { fit: 'cover' })
-            .jpeg({ quality: 95 })
-            .toBuffer();
-          photoBase64 = optBuf.toString('base64');
-          photoLength = optBuf.length;
-          studentsWithPhotos.push({
-            pin: bioId,
-            name: `${s.first_name} ${s.last_name}`,
-            photoPath: resolvedPhotoPath,
-            photoBase64
-          });
-        } catch (_) {}
-      }
-
       for (const dev of devices) {
         admsService.queueCommand(
           dev.serial_number,
-          `DATA UPDATE USER PIN=${bioId}\tName=${s.first_name} ${s.last_name}\tCard=${s.card_number || ''}\tPri=0\tGrp=1`
+          `DATA UPDATE USER PIN=${bioId}\tName=${s.first_name} ${s.last_name}\tCard=${s.card_number || ''}\tPri=0\tGrp=1`,
+          true
         );
         totalCommands++;
-
-        if (photoBase64) {
-          admsService.queueCommand(
-            dev.serial_number,
-            `DATA UPDATE USERPHOTO PIN=${bioId}\tFileName=${bioId}.jpg\tSize=${photoLength}\tContent=${photoBase64}`
-          );
-          admsService.queueCommand(
-            dev.serial_number,
-            `DATA UPDATE BIOPHOTO PIN=${bioId}\tType=9\tSize=${photoLength}\tContent=${photoBase64}`
-          );
-          totalCommands += 2;
-        }
       }
     }
 
-    // Push batch photos to iDMS as well
-    if (studentsWithPhotos.length > 0) {
-      timewatchIdmsService.pushStudentPhotosBatch(studentsWithPhotos).catch(() => {});
-    }
+    // Trigger TimeWatch iDMS hardware upload in background asynchronously
+    // so the HTTP response returns immediately without timing out or blocking
+    timewatchIdmsService.pushAllStudentsToTurnstiles().catch(err => {
+      console.warn('[TIMEWATCH IDMS PUSH ALL ASYNC WARN]', err.message);
+    });
 
     await logAudit({
       userId: req.user?.id,
@@ -827,18 +800,16 @@ async function syncAllStudentsToTerminals(req, res, next) {
       action: 'SYNC_ALL_STUDENTS_TO_TURNSTILES',
       entityType: 'STUDENT',
       entityId: 0,
-      details: `Queued ${students.length} students across all ${devices.length} turnstiles (${totalCommands} commands, ${studentsWithPhotos.length} photos)`,
+      details: `Queued ${students.length} students across all ${devices.length} turnstiles (${totalCommands} commands queued)`,
       ipAddress: req.ip
     });
 
     return res.json({
       success: true,
-      message: `Successfully pushed all ${students.length} students (${studentsWithPhotos.length} with face photos) to all ${devices.length} physical turnstile machines.`,
+      message: `Successfully queued all ${students.length} students to synchronize across all ${devices.length} turnstile lanes. Hardware upload is processing in the background.`,
       studentsCount: students.length,
       turnstilesCount: devices.length,
-      photosCount: studentsWithPhotos.length,
-      totalCommands,
-      idmsResult
+      totalCommands
     });
   } catch (error) {
     next(error);
@@ -906,10 +877,29 @@ async function getStudentTerminalImage(req, res, next) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
+    const bioId = student.biometric_device_id || `TW-UID-${student.student_id.slice(-4)}`;
+    const fs = require('fs');
+    const path = require('path');
+
+    // 1. If student already has a local photo on disk, return it immediately
+    if (student.photo_avatar) {
+      const diskPath = path.resolve(__dirname, '../../', student.photo_avatar.replace(/^\/+/, ''));
+      if (fs.existsSync(diskPath)) {
+        const fileBuf = fs.readFileSync(diskPath);
+        return res.json({
+          success: true,
+          biometricId: bioId,
+          deviceSerial: deviceId || 'TW30000006260161',
+          image: fileBuf.toString('base64'),
+          imageUrl: student.photo_avatar
+        });
+      }
+    }
+
+    // 2. Fetch using TWAPI GetUserImage or on-demand from iDMS
     const [devices] = await pool.query('SELECT * FROM gate_devices');
     const targetDevice = (deviceId && devices.find(d => d.serial_number === deviceId || d.device_code === deviceId || String(d.id) === String(deviceId))) || devices[0];
-    const sn = targetDevice?.serial_number || deviceId;
-    const bioId = student.biometric_device_id || `TW-UID-${student.student_id.slice(-4)}`;
+    const sn = targetDevice?.serial_number || deviceId || 'TW30000006260161';
 
     const timewatchApiService = require('../services/timewatchApiService');
     const apiRes = await timewatchApiService.getUserImage({
@@ -917,11 +907,36 @@ async function getStudentTerminalImage(req, res, next) {
       UserID: bioId
     });
 
+    const rawImg = apiRes.data?.Image || apiRes.data?.image || apiRes.data;
+    if (rawImg && typeof rawImg === 'string' && rawImg.length > 50) {
+      const uploadDir = path.resolve(__dirname, '../../uploads/students');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+      const fileName = `${bioId}.jpg`;
+      const filePath = path.join(uploadDir, fileName);
+      const cleanBase64 = rawImg.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(filePath, Buffer.from(cleanBase64, 'base64'));
+
+      const avatarPath = `/uploads/students/${fileName}`;
+      await pool.query(
+        'UPDATE students SET photo_avatar = ?, photo_url = ? WHERE id = ?',
+        [avatarPath, avatarPath, student.id]
+      );
+
+      return res.json({
+        success: true,
+        biometricId: bioId,
+        deviceSerial: sn,
+        image: cleanBase64,
+        imageUrl: avatarPath
+      });
+    }
+
     return res.json({
       success: apiRes.success,
       biometricId: bioId,
       deviceSerial: sn,
-      image: apiRes.data?.Image || apiRes.data?.image || apiRes.data || null,
+      image: rawImg || null,
       details: apiRes
     });
   } catch (error) {
@@ -1038,14 +1053,32 @@ async function importStudentsFromTerminal(req, res, next) {
       }
     }
 
+    // Pre-load all existing students into memory for fast O(1) lookup
+    const [allExisting] = await pool.query(
+      'SELECT id, student_id, first_name, last_name, biometric_device_id, card_number, biometric_enrolled, email FROM students'
+    );
+    const existingByBioId = new Map();
+    const existingByRoll = new Map();
+    const existingByEmail = new Map();
+    for (const s of allExisting) {
+      if (s.biometric_device_id) existingByBioId.set(String(s.biometric_device_id).trim(), s);
+      if (s.student_id) existingByRoll.set(String(s.student_id).trim().toUpperCase(), s);
+      if (s.email) existingByEmail.set(String(s.email).trim().toLowerCase(), s);
+    }
+
     for (const u of distinctMap.values()) {
       const pin = String(u.userId).trim();
       let rawName = (u.name || '').trim();
       let firstName = '';
       let lastName = '';
-      let rollNo = `TW-${pin}`;
       let institution = 'HICET';
       let dept = 'Computer Science & Engineering';
+
+      const existingStudent = existingByBioId.get(pin) ||
+                              existingByRoll.get(`TW-${pin}`.toUpperCase());
+
+      // Preserve existing valid student_id (e.g. real university roll number) if already assigned
+      let rollNo = existingStudent?.student_id || `TW-${pin}`;
 
       // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT)
       if (pin === '8' || rawName.toLowerCase().includes('emmanuvel')) {
@@ -1054,8 +1087,8 @@ async function importStudentsFromTerminal(req, res, next) {
         rollNo = '720826105011';
         institution = 'HIT';
       } else if (!rawName || /^\d+$/.test(rawName)) {
-        firstName = 'Student';
-        lastName = pin;
+        firstName = existingStudent?.first_name || 'Student';
+        lastName = existingStudent?.last_name || pin;
       } else {
         // Clean and format student name
         const cleanName = rawName.replace(/^[A-Z]\./, '').trim();
@@ -1064,49 +1097,77 @@ async function importStudentsFromTerminal(req, res, next) {
         lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '(Student)');
       }
 
-      const card = u.card ? String(u.card).trim() : null;
-      const email = `${rollNo.toLowerCase()}@hicet.ac.in`;
+      const card = u.card ? String(u.card).trim() : (existingStudent?.card_number || null);
+      let email = existingStudent?.email || `${rollNo.toLowerCase()}@hicet.ac.in`;
 
-      const [existing] = await pool.query(
-        'SELECT id, student_id, first_name, last_name, biometric_device_id, card_number, biometric_enrolled FROM students WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?',
-        [pin, rollNo, `TW-${pin}`]
-      );
+      try {
+        if (!existingStudent) {
+          // If email is already in use by another record, disambiguate with PIN
+          if (existingByEmail.has(email.toLowerCase())) {
+            email = `tw-${pin}@hicet.ac.in`;
+            if (existingByEmail.has(email.toLowerCase())) {
+              email = `tw-${pin}-${Date.now()}@hicet.ac.in`;
+            }
+          }
 
-      if (existing.length === 0) {
-        const [insertRes] = await pool.query(
-          `INSERT INTO students 
-           (student_id, first_name, last_name, department, course, year_of_study, phone, parent_phone, email, current_location_status, biometric_device_id, biometric_enrolled, card_number, is_active, institution)
-           VALUES (?, ?, ?, ?, 'B.E.', 2, '9876543210', '9876543210', ?, 'INSIDE', ?, 1, ?, 1, ?)`,
-          [rollNo, firstName, lastName, dept, email, pin, card, institution]
-        );
-        imported.push({ id: insertRes.insertId, studentId: rollNo, name: `${firstName} ${lastName}`, pin, card, institution });
-      } else {
-        const s = existing[0];
-        await pool.query(
-          `UPDATE students 
-           SET biometric_enrolled = 1,
-               first_name = ?,
-               last_name = ?,
-               student_id = ?,
-               institution = ?,
-               department = ?,
-               biometric_device_id = ?,
-               card_number = COALESCE(?, card_number),
-               is_active = 1
-           WHERE id = ?`,
-          [firstName, lastName, rollNo, institution, dept, pin, card, s.id]
-        );
-        updated.push({ id: s.id, studentId: rollNo, name: `${firstName} ${lastName}`, pin, institution });
+          const [insertRes] = await pool.query(
+            `INSERT INTO students 
+             (student_id, first_name, last_name, department, course, year_of_study, phone, parent_phone, email, current_location_status, biometric_device_id, biometric_enrolled, card_number, is_active, institution)
+             VALUES (?, ?, ?, ?, 'B.E.', 2, '9876543210', '9876543210', ?, 'INSIDE', ?, 1, ?, 1, ?)
+             ON DUPLICATE KEY UPDATE 
+               first_name = VALUES(first_name),
+               last_name = VALUES(last_name),
+               biometric_device_id = VALUES(biometric_device_id),
+               biometric_enrolled = 1,
+               is_active = 1,
+               card_number = COALESCE(VALUES(card_number), card_number)`,
+            [rollNo, firstName, lastName, dept, email, pin, card, institution]
+          );
+
+          const newId = insertRes.insertId;
+          const insertedRecord = { id: newId, student_id: rollNo, biometric_device_id: pin, email };
+          existingByBioId.set(pin, insertedRecord);
+          existingByRoll.set(rollNo.toUpperCase(), insertedRecord);
+          existingByEmail.set(email.toLowerCase(), insertedRecord);
+          imported.push({ id: newId, studentId: rollNo, name: `${firstName} ${lastName}`, pin, card, institution });
+        } else {
+          await pool.query(
+            `UPDATE students 
+             SET biometric_enrolled = 1,
+                 first_name = ?,
+                 last_name = ?,
+                 institution = ?,
+                 department = ?,
+                 biometric_device_id = ?,
+                 card_number = COALESCE(?, card_number),
+                 is_active = 1
+             WHERE id = ?`,
+            [firstName, lastName, institution, dept, pin, card, existingStudent.id]
+          );
+          updated.push({ id: existingStudent.id, studentId: existingStudent.student_id || rollNo, name: `${firstName} ${lastName}`, pin, institution });
+        }
+      } catch (sqlErr) {
+        console.warn(`[IMPORT USER DB WARN] PIN ${pin}:`, sqlErr.message);
       }
 
-      // Automatically broadcast and push this student across all 8 turnstile lanes
+      // Automatically broadcast and push this student across all turnstile lanes
       for (const dev of devices) {
         admsService.queueCommand(
           dev.serial_number,
-          `DATA UPDATE USER PIN=${pin}\tName=${firstName} ${lastName}\tCard=${card || ''}\tPri=0\tGrp=1`
+          `DATA UPDATE USER PIN=${pin}\tName=${firstName} ${lastName}\tCard=${card || ''}\tPri=0\tGrp=1`,
+          true
         );
       }
     }
+
+    if (devices.length > 0 && distinctMap.size > 0) {
+      console.log(`[ADMS QUEUE] Queued update commands for ${distinctMap.size} users across ${devices.length} turnstiles.`);
+    }
+
+    // Automatically trigger photo sync from TimeWatch server in background
+    timewatchIdmsService.syncAllUserPhotosToDb().catch(pErr => {
+      console.warn('[IMPORT PHOTO SYNC WARN]', pErr.message);
+    });
 
     await logAudit({
       userId: req.user?.id,
@@ -1127,6 +1188,32 @@ async function importStudentsFromTerminal(req, res, next) {
       turnstilesCount: devices.length,
       imported,
       updated
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function syncTerminalPhotos(req, res, next) {
+  try {
+    const timewatchIdmsService = require('../services/timewatchIdmsService');
+    const result = await timewatchIdmsService.syncAllUserPhotosToDb();
+
+    await logAudit({
+      userId: req.user?.id,
+      actorName: req.user?.full_name || 'System',
+      actorRole: req.user?.role || 'ADMIN',
+      action: 'SYNC_STUDENT_PHOTOS',
+      entityType: 'STUDENT',
+      entityId: 0,
+      details: `Synchronized ${result.updatedCount} student photos from TimeWatch server`,
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: `Successfully synchronized ${result.updatedCount} student photos from TimeWatch server.`,
+      ...result
     });
   } catch (error) {
     next(error);
@@ -1366,6 +1453,7 @@ module.exports = {
   getStudentTerminalImage,
   deleteStudentFromTerminal,
   importStudentsFromTerminal,
+  syncTerminalPhotos,
   downloadStudentTemplate,
   previewBulkUpload,
   bulkUploadStudents

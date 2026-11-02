@@ -1,6 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const path = require('path');
+const xlsx = require('xlsx');
 const dotenv = require('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const { pool } = require('../config/database');
@@ -105,6 +106,42 @@ class TimeWatchIdmsService {
             updatedCookie = cookie ? `${cookie}; ${added}` : added;
           }
           resolve({ status: res.statusCode, headers: res.headers, body: data, cookie: updatedCookie });
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`POST request to TimeWatch server (${this.serverUrl}) timed out.`));
+      });
+      req.write(bodyStr);
+      req.end();
+    });
+  }
+
+  /**
+   * HTTP POST helper that returns a raw Buffer (for Excel / binary downloads)
+   */
+  _postBuffer(path, bodyStr, cookie = this.sessionCookie) {
+    return new Promise((resolve, reject) => {
+      const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(bodyStr)
+      };
+      if (cookie) headers['Cookie'] = cookie;
+
+      const req = http.request({
+        hostname: this.hostname,
+        port: this.port,
+        path,
+        method: 'POST',
+        headers,
+        timeout: 20000
+      }, res => {
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          resolve({ status: res.statusCode, headers: res.headers, buffer: buf });
         });
       });
       req.on('error', reject);
@@ -396,8 +433,79 @@ class TimeWatchIdmsService {
 
   /**
    * Fetch enrolled biometric users from UserList.aspx
+   * Uses fast server-side Excel export to retrieve all 800+ enrolled users across all pages,
+   * with seamless fallback to HTML table parsing.
    */
   async getEnrolledUsers() {
+    await this.login();
+
+    // 1. Try Excel export first (contains ALL 800+ users across all pages in 1 request)
+    try {
+      const initPage = await this._authenticatedGet('/UserList.aspx');
+      const viewstate = this._extractInput(initPage.body, '__VIEWSTATE');
+      const viewstateGen = this._extractInput(initPage.body, '__VIEWSTATEGENERATOR');
+      const eventVal = this._extractInput(initPage.body, '__EVENTVALIDATION');
+
+      const postParams = new URLSearchParams();
+      postParams.append('__VIEWSTATE', viewstate);
+      if (viewstateGen) postParams.append('__VIEWSTATEGENERATOR', viewstateGen);
+      if (eventVal) postParams.append('__EVENTVALIDATION', eventVal);
+      postParams.append('ctl00$ContentPlaceHolder1$ASPxButton2', 'Export');
+
+      const exportRes = await this._postBuffer('/UserList.aspx', postParams.toString(), this.sessionCookie);
+      const buf = exportRes.buffer;
+
+      // Validate that the buffer is an XLSX workbook (starts with PK / zip header: 0x50, 0x4B)
+      if (exportRes.status === 200 && buf.length > 500 && buf[0] === 0x50 && buf[1] === 0x4B) {
+        const workbook = xlsx.read(buf, { type: 'buffer' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawRows = xlsx.utils.sheet_to_json(sheet);
+
+        if (rawRows && rawRows.length > 0) {
+          const usersMap = new Map();
+          for (const row of rawRows) {
+            const uid = String(row['User ID'] || '').trim();
+            if (!uid || uid === 'ALL') continue;
+
+            const sn = String(row['Device ID'] || '').trim();
+            const model = String(row['Device Type'] || '').trim();
+            let rawName = String(row['User Name'] || '').trim();
+            const card = row['Card'] ? String(row['Card']).trim() : null;
+            const hasFace = String(row['Face'] || '').toLowerCase().includes('yes');
+
+            if (rawName === uid || /^\d+$/.test(rawName)) {
+              rawName = '';
+            }
+
+            if (!usersMap.has(uid)) {
+              usersMap.set(uid, {
+                serialNumber: sn,
+                model,
+                userId: uid,
+                name: rawName,
+                card: card || null,
+                hasFace,
+                devices: sn ? [sn] : []
+              });
+            } else {
+              const u = usersMap.get(uid);
+              if (!u.name && rawName) u.name = rawName;
+              if (!u.card && card) u.card = card;
+              if (hasFace) u.hasFace = true;
+              if (sn && !u.devices.includes(sn)) u.devices.push(sn);
+            }
+          }
+
+          const userList = Array.from(usersMap.values());
+          console.log(`[TIMEWATCH IDMS] Successfully exported and parsed ${userList.length} unique enrolled users from TimeWatch server.`);
+          return userList;
+        }
+      }
+    } catch (exportErr) {
+      console.warn('[TIMEWATCH IDMS WARN] Excel export failed, falling back to HTML parsing:', exportErr.message);
+    }
+
+    // 2. Fallback to HTML table parsing (page 1)
     const page = await this._authenticatedGet('/UserList.aspx');
     
     // Parse grid rows preserving table structure and column indices
@@ -409,14 +517,6 @@ class TimeWatchIdmsService {
 
     const usersMap = new Map();
     for (const cells of rows) {
-      // Column order in ASPxGridView:
-      // [0] SerialNumber (e.g. TW30000006260175)
-      // [1] Model (e.g. TrueFace)
-      // [2] UserID / PIN (e.g. 8, 10, 1)
-      // [3] Name (e.g. "Emmanuvel simson", "Navaneeth Murali", "shyam")
-      // [4] Enabled (Yes / No)
-      // [5] Privilege (0)
-      // [6] Card Number (optional)
       const sn = cells[0] || '';
       const model = cells[1] || '';
       const uid = cells[2] || '';
@@ -425,7 +525,6 @@ class TimeWatchIdmsService {
 
       if (!uid || uid === 'ALL') continue;
 
-      // Clean up name: if name is just the pin or empty, leave it as null so it gets formatted cleanly
       if (rawName === uid || /^\d+$/.test(rawName)) {
         rawName = '';
       }
@@ -915,123 +1014,111 @@ class TimeWatchIdmsService {
   async pushStudentToTurnstiles({ pin, name, department, cardNumber, photoPath, photoBase64 }) {
     console.log(`[TIMEWATCH HARDWARE PUSH] Pushing student ${name} (PIN: ${pin}) to physical turnstiles...`);
 
-    // 1. First ensure employee record exists and upload basic user details to turnstiles
-    const employeeResult = await this._withBrowser(async (page) => {
-      await page.goto(`${this.serverUrl}/Employee.aspx`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      await page.waitForSelector('#ContentPlaceHolder1_ASPxButton3', { timeout: 10000 });
+    const admsService = require('./admsService');
+    const timewatchApiService = require('./timewatchApiService');
 
-      // Check if employee exists on Employee.aspx
-      const pageText = await page.evaluate(() => document.body.innerText);
-      const userPin = String(pin).trim();
-      const userName = (name || `Student ${pin}`).trim();
+    // Fetch turnstiles
+    const [devices] = await pool.query('SELECT serial_number FROM gate_devices');
+    const serials = devices.map(d => d.serial_number).filter(Boolean);
+    const targetSerials = serials.length > 0 ? serials : [
+      'TW30000006260175', 'TW30000006260161', 'TW30000006260156', 'TW30000006260207',
+      'TW30000006260242', 'TW30000006260256', 'TW30000006260265', 'TW30000006260127'
+    ];
 
-      const exists = pageText.includes(userName) || pageText.includes(`\t${userPin}\t`) || pageText.includes(` ${userPin} `);
+    const userPin = String(pin).trim();
+    const userName = (name || `Student ${userPin}`).trim();
 
-      if (!exists) {
-        console.log(`[TIMEWATCH HARDWARE PUSH] Student ${userPin} not yet in Employee.aspx, creating record...`);
-        // Click Add (+) button
-        await page.evaluate(() => {
-          const addBtn = document.querySelector('[id*="DXCBtn0"]') || document.querySelector('img[title="New"]');
-          if (addBtn) addBtn.click();
-        });
+    // 1. Immediately queue ADMS user record command across all turnstiles
+    for (const sn of targetSerials) {
+      admsService.queueCommand(
+        sn,
+        `DATA UPDATE USER PIN=${userPin}\tName=${userName}\tCard=${cardNumber || ''}\tPri=0\tGrp=1`
+      );
+    }
 
-        await page.waitForSelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I', { visible: true, timeout: 8000 });
+    // 2. Ensure employee record exists and upload basic user details via iDMS Employee.aspx
+    let employeeResult = null;
+    try {
+      employeeResult = await this._withBrowser(async (page) => {
+        await page.goto(`${this.serverUrl}/Employee.aspx`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.waitForSelector('#ContentPlaceHolder1_ASPxButton3', { timeout: 10000 });
 
-        // Fill fields using real keyboard input for DevExpress
-        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I');
-        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I', userPin);
+        const pageText = await page.evaluate(() => document.body.innerText);
+        const exists = pageText.includes(userName) || pageText.includes(`\t${userPin}\t`) || pageText.includes(` ${userPin} `);
 
-        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I');
-        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I', userPin);
+        if (!exists) {
+          console.log(`[TIMEWATCH HARDWARE PUSH] Student ${userPin} not yet in Employee.aspx, creating record...`);
+          await page.evaluate(() => {
+            const addBtn = document.querySelector('[id*="DXCBtn0"]') || document.querySelector('img[title="New"]');
+            if (addBtn) addBtn.click();
+          });
 
-        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I');
-        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I', userName);
+          const editorInput = await page.waitForSelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I, input[id*="Editor2_I"]', { visible: true, timeout: 6000 }).catch(() => null);
 
-        // Select Company
-        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor9_I');
-        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor9_I', 'TimeWatch');
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
-        await new Promise(r => setTimeout(r, 400));
+          if (editorInput) {
+            await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I').catch(() => {});
+            await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor2_I', userPin).catch(() => {});
 
-        // Select Department
-        await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor10_I');
-        await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor10_I', 'ADMIN');
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
-        await new Promise(r => setTimeout(r, 400));
+            await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I').catch(() => {});
+            await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor3_I', userPin).catch(() => {});
 
-        // Optional Card Number
-        if (cardNumber) {
-          const cardInput = await page.$('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor13_I');
-          if (cardInput) {
-            await cardInput.click();
-            await cardInput.type(String(cardNumber).trim());
+            await page.click('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I').catch(() => {});
+            await page.type('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXEditor4_I', userName).catch(() => {});
+
+            await page.evaluate(() => {
+              const saveBtn = document.getElementById('ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXCBtn19') ||
+                              document.querySelector('img[title="Save"]');
+              if (saveBtn) saveBtn.click();
+            });
+            await new Promise(r => setTimeout(r, 2000));
           }
         }
 
-        // Click Save icon
-        console.log('[TIMEWATCH HARDWARE PUSH] Saving employee in TimeWatch iDMS...');
+        // Trigger Upload To Device
         await page.evaluate(() => {
-          const saveBtn = document.getElementById('ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXPEForm_DXEFL_DXCBtn19') ||
-                          document.querySelector('img[title="Save"]');
-          if (saveBtn) saveBtn.click();
+          const chk = document.querySelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXSelAllBtn0') ||
+                      document.querySelector('[id*="DXSelAllBtn0"]');
+          if (chk) chk.click();
+        });
+        await new Promise(r => setTimeout(r, 800));
+
+        await page.evaluate(() => {
+          const btn = document.getElementById('ContentPlaceHolder1_ASPxButton3') ||
+                      document.getElementById('ContentPlaceHolder1_ASPxButton3_CD');
+          if (btn) btn.click();
         });
 
-        // Wait for save callback to reload the grid
+        await new Promise(r => setTimeout(r, 1200));
+        await page.evaluate(() => {
+          const devChk = document.querySelector('#ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_grdDevice_DXSelAllBtn0') ||
+                         document.querySelector('[id*="grdDevice"][id*="DXSelAllBtn0"]');
+          if (devChk) devChk.click();
+
+          const okBtn = document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK') ||
+                        document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK_CD') ||
+                        document.querySelector('[id*="btOK"]');
+          if (okBtn) okBtn.click();
+        });
+
         await new Promise(r => setTimeout(r, 2500));
-      }
-
-      // 2. Select the row (or select all) and trigger Upload To Device
-      console.log('[TIMEWATCH HARDWARE PUSH] Selecting student and triggering Upload To Device...');
-      await page.evaluate(() => {
-        const chk = document.querySelector('#ContentPlaceHolder1_ASPxCallbackPanel1_ASPxGridView1_DXSelAllBtn0') ||
-                    document.querySelector('[id*="DXSelAllBtn0"]');
-        if (chk) chk.click();
+        return { success: true, message: `Dispatched User Details for ${userName} (${userPin})` };
       });
-      await new Promise(r => setTimeout(r, 800));
+    } catch (empErr) {
+      console.warn(`[TIMEWATCH EMPLOYEE ASYNC WARN] ${empErr.message}`);
+      employeeResult = { success: false, error: empErr.message };
+    }
 
-      await page.evaluate(() => {
-        const btn = document.getElementById('ContentPlaceHolder1_ASPxButton3') ||
-                    document.getElementById('ContentPlaceHolder1_ASPxButton3_CD');
-        if (btn) btn.click();
-      });
-
-      // 3. Select all turnstile devices in pcLogin popup
-      await new Promise(r => setTimeout(r, 1500));
-      await page.evaluate(() => {
-        const devChk = document.querySelector('#ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_grdDevice_DXSelAllBtn0') ||
-                       document.querySelector('[id*="grdDevice"][id*="DXSelAllBtn0"]');
-        if (devChk) devChk.click();
-
-        const okBtn = document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK') ||
-                      document.getElementById('ContentPlaceHolder1_pcLogin_Panel1_ASPxFormLayout2_btOK_CD') ||
-                      document.querySelector('[id*="btOK"]');
-        if (okBtn) okBtn.click();
-      });
-
-      await new Promise(r => setTimeout(r, 3000));
-      console.log(`[TIMEWATCH HARDWARE PUSH] Set User Details dispatched successfully for ${userName} (PIN: ${userPin}) across all turnstiles!`);
-
-      return {
-        success: true,
-        pin: userPin,
-        name: userName,
-        message: `Successfully uploaded ${userName} (PIN: ${userPin}) to all 8 physical turnstiles.`
-      };
-    });
-
-    // 2. Await face photo push sequentially so there is NO lock contention
+    // 3. Await face photo push sequentially so the photo is guaranteed to be pushed to all turnstiles
     let photoResult = null;
     if (photoPath || photoBase64) {
       console.log(`[TIMEWATCH HARDWARE PUSH] Now pushing face photo for ${name} (PIN: ${pin})...`);
-      photoResult = await this.pushStudentPhotoToTurnstiles({ pin, name, photoPath, photoBase64 });
+      photoResult = await this.pushStudentPhotoToTurnstiles({ pin: userPin, name: userName, photoPath, photoBase64 });
     }
 
     return {
       success: true,
-      pin,
-      name,
+      pin: userPin,
+      name: userName,
       employeeResult,
       photoResult
     };
@@ -1223,17 +1310,7 @@ class TimeWatchIdmsService {
       return { success: true, message: 'All students uploaded to all turnstiles successfully!' };
     });
 
-    // 4. Push photos in a separate step (OUTSIDE Employee.aspx session to avoid deadlock)
-    try {
-      const [photoStudents] = await pool.query(
-        "SELECT student_id, first_name, last_name, biometric_device_id, photo_avatar FROM students WHERE photo_avatar IS NOT NULL AND photo_avatar != ''"
-      );
-      if (photoStudents.length > 0) {
-        await this.pushStudentPhotosBatch(photoStudents);
-      }
-    } catch (pErr) {
-      console.warn('[HARDWARE PHOTO PUSH ALL WARN]', pErr.message);
-    }
+    console.log('[TIMEWATCH HARDWARE PUSH ALL] TimeWatch iDMS uploaded all user records and face templates to turnstile terminals.');
 
     return {
       success: true,
@@ -1348,6 +1425,202 @@ class TimeWatchIdmsService {
       console.warn('[TIMEWATCH HARDWARE DELETE ALL WARN]', err.message);
       return { success: false, error: err.message };
     }
+  }
+
+  /**
+   * Download image buffer with authenticated session cookie
+   */
+  async downloadImageBuffer(imgPath) {
+    await this.login();
+    return new Promise((resolve, reject) => {
+      const req = http.get({
+        hostname: this.hostname,
+        port: this.port,
+        path: imgPath,
+        headers: { Cookie: this.sessionCookie },
+        timeout: 10000
+      }, res => {
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`Timeout downloading image from ${imgPath}`));
+      });
+    });
+  }
+
+  /**
+   * Sync all user photos from UserPhoto.aspx into local storage and database
+   */
+  async syncAllUserPhotosToDb() {
+    await this.login();
+    console.log('[TIMEWATCH PHOTOS] Starting full student photo sync from UserPhoto.aspx...');
+
+    const uploadDir = path.resolve(__dirname, '../../uploads/students');
+    const fs = require('fs');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const initPage = await this._authenticatedGet('/UserPhoto.aspx');
+    const viewstate = this._extractInput(initPage.body, '__VIEWSTATE');
+    const viewstateGen = this._extractInput(initPage.body, '__VIEWSTATEGENERATOR');
+    const eventVal = this._extractInput(initPage.body, '__EVENTVALIDATION');
+
+    // Parse page count (e.g. Page 1 of 7 (674 items))
+    const pageMatch = initPage.body.match(/Page \d+ of (\d+)/i);
+    const totalPages = pageMatch ? parseInt(pageMatch[1], 10) : 7;
+
+    const userPhotoMap = new Map(); // uid -> { dev, uid, name, imgUrl }
+
+    const parseHtmlRows = (html) => {
+      const rows = html.match(/<tr id="ContentPlaceHolder1_ASPxGridView1_DXDataRow\d+"[\s\S]*?<\/tr>/gi) || [];
+      for (const r of rows) {
+        const cells = (r.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || []).map(c => c.replace(/<[^>]+>/g, '').trim());
+        const imgMatch = r.match(/src="([^"]+)"/);
+        const dev = cells[0] || '';
+        const uid = cells[1] || '';
+        const name = cells[2] || '';
+        const imgUrl = imgMatch ? imgMatch[1] : null;
+
+        if (uid && imgUrl && !userPhotoMap.has(uid)) {
+          userPhotoMap.set(uid, { dev, uid, name, imgUrl });
+        }
+      }
+    };
+
+    // 1. Parse initial page (Page 0)
+    parseHtmlRows(initPage.body);
+
+    // 2. Fetch remaining pages
+    for (let p = 1; p < totalPages; p++) {
+      try {
+        const params = new URLSearchParams();
+        params.append('__VIEWSTATE', viewstate);
+        if (viewstateGen) params.append('__VIEWSTATEGENERATOR', viewstateGen);
+        if (eventVal) params.append('__EVENTVALIDATION', eventVal);
+        params.append('__CALLBACKID', 'ctl00$ContentPlaceHolder1$ASPxGridView1');
+        params.append('__CALLBACKPARAM', `c0:KV|2;[];GB|20;12|PAGERONCLICK3|PN${p};`);
+
+        const res = await this._post('/UserPhoto.aspx', params.toString(), this.sessionCookie);
+        parseHtmlRows(res.body);
+      } catch (err) {
+        console.warn(`[TIMEWATCH PHOTOS WARN] Failed fetching page ${p + 1}: ${err.message}`);
+      }
+    }
+
+    console.log(`[TIMEWATCH PHOTOS] Found ${userPhotoMap.size} students with enrolled photos on server.`);
+
+    // 3. Download photos and update database in controlled batches
+    const items = Array.from(userPhotoMap.values());
+    let updatedCount = 0;
+    const batchSize = 10;
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (item) => {
+        try {
+          const buf = await this.downloadImageBuffer(item.imgUrl);
+          if (buf && buf.length > 500) {
+            const fileName = `${item.uid}.jpg`;
+            const filePath = path.join(uploadDir, fileName);
+            fs.writeFileSync(filePath, buf);
+
+            const avatarPath = `/uploads/students/${fileName}`;
+            const rollNo = `TW-${item.uid}`;
+
+            // Clean real name if available
+            let firstName = '';
+            let lastName = '';
+            if (item.name && !/^\d+$/.test(item.name)) {
+              const cleanName = item.name.replace(/^[A-Z]\./, '').trim();
+              const parts = (cleanName || item.name).split(/\s+/);
+              firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : '';
+              lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+            }
+
+            if (firstName) {
+              await pool.query(
+                `UPDATE students 
+                 SET photo_avatar = ?, photo_url = ?, first_name = ?, last_name = ? 
+                 WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
+                [avatarPath, avatarPath, firstName, lastName, item.uid, rollNo, `TW-${item.uid}`]
+              );
+            } else {
+              await pool.query(
+                `UPDATE students 
+                 SET photo_avatar = ?, photo_url = ? 
+                 WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
+                [avatarPath, avatarPath, item.uid, rollNo, `TW-${item.uid}`]
+              );
+            }
+            updatedCount++;
+          }
+        } catch (downloadErr) {
+          // Ignore individual photo download error
+        }
+      }));
+    }
+
+    console.log(`[TIMEWATCH PHOTOS] Completed. Downloaded and mapped ${updatedCount} student photos successfully!`);
+    return {
+      success: true,
+      totalPhotosOnServer: userPhotoMap.size,
+      updatedCount
+    };
+  }
+
+  /**
+   * Fetch single user photo on-demand by PIN
+   */
+  async fetchUserPhotoByPin(pin) {
+    if (!pin) return null;
+    const cleanPin = String(pin).trim();
+    const fs = require('fs');
+    const uploadDir = path.resolve(__dirname, '../../uploads/students');
+    const localFile = path.join(uploadDir, `${cleanPin}.jpg`);
+
+    // Check if already on disk
+    if (fs.existsSync(localFile)) {
+      const buf = fs.readFileSync(localFile);
+      return {
+        buffer: buf,
+        base64: buf.toString('base64'),
+        url: `/uploads/students/${cleanPin}.jpg`
+      };
+    }
+
+    // Try finding on UserPhoto.aspx
+    await this.login();
+    const initPage = await this._authenticatedGet('/UserPhoto.aspx');
+    const rowRegex = new RegExp(`<tr id="ContentPlaceHolder1_ASPxGridView1_DXDataRow\\d+"[\\s\\S]*?<td[^>]*>[^<]*<\\/td>\\s*<td[^>]*>\\s*${cleanPin}\\s*<\\/td>[\\s\\S]*?<\\/tr>`, 'i');
+    let m = initPage.body.match(rowRegex);
+
+    if (m) {
+      const imgMatch = m[0].match(/src="([^"]+)"/);
+      if (imgMatch) {
+        const buf = await this.downloadImageBuffer(imgMatch[1]);
+        if (buf && buf.length > 500) {
+          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+          fs.writeFileSync(localFile, buf);
+          const avatarPath = `/uploads/students/${cleanPin}.jpg`;
+          await pool.query(
+            `UPDATE students SET photo_avatar = ?, photo_url = ? WHERE biometric_device_id = ? OR student_id = ?`,
+            [avatarPath, avatarPath, cleanPin, `TW-${cleanPin}`]
+          );
+          return {
+            buffer: buf,
+            base64: buf.toString('base64'),
+            url: avatarPath
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
