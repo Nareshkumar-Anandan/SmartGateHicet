@@ -1107,6 +1107,11 @@ async function importStudentsFromTerminal(req, res, next) {
       if (pin === '8' || rawName.toLowerCase().includes('emmanuvel')) {
         firstName = 'Emmanuvel';
         lastName = 'Simson';
+        rollNo = distinctMap.has('720826105011') && pin === '8' ? '8' : '720826105011';
+        institution = 'HIT';
+      } else if (pin === '720826105011') {
+        firstName = 'Emmanuvel';
+        lastName = 'Simson';
         rollNo = '720826105011';
         institution = 'HIT';
       } else if (pin === '155') {
