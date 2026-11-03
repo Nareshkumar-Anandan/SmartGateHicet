@@ -6,11 +6,11 @@ let lastDeviceStatusSync = 0;
 
 async function getDevices(req, res, next) {
   try {
-    // 1. Mark stale devices OFFLINE in the database (older than 120s or NULL last_heartbeat)
+    // 1. Mark stale devices OFFLINE in the database (older than 300s or NULL last_heartbeat)
     await pool.query(`
       UPDATE gate_devices 
       SET status = 'OFFLINE', updated_at = NOW() 
-      WHERE (last_heartbeat IS NULL OR last_heartbeat < NOW() - INTERVAL 120 SECOND) 
+      WHERE (last_heartbeat IS NULL OR last_heartbeat < NOW() - INTERVAL 300 SECOND) 
         AND status = 'ONLINE'
     `);
 
@@ -26,7 +26,7 @@ async function getDevices(req, res, next) {
       SELECT 
         d.*,
         CASE 
-          WHEN d.last_heartbeat >= NOW() - INTERVAL 120 SECOND AND d.status = 'ONLINE' THEN 'ONLINE'
+          WHEN d.last_heartbeat >= NOW() - INTERVAL 300 SECOND AND d.status = 'ONLINE' THEN 'ONLINE'
           ELSE 'OFFLINE'
         END as status,
         (SELECT COUNT(*) FROM gate_events e WHERE e.device_id = d.id AND e.event_timestamp >= NOW() - INTERVAL 24 HOUR) as events_today,

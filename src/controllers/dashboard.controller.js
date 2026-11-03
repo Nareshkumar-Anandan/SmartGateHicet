@@ -39,8 +39,8 @@ async function getAdminSummary(req, res, next) {
     const [[deviceCounts]] = await pool.query(`
       SELECT 
         COUNT(*) as totalDevices,
-        SUM(CASE WHEN last_heartbeat >= NOW() - INTERVAL 120 SECOND AND status = 'ONLINE' THEN 1 ELSE 0 END) as devicesOnline,
-        SUM(CASE WHEN last_heartbeat < NOW() - INTERVAL 120 SECOND OR last_heartbeat IS NULL OR status != 'ONLINE' THEN 1 ELSE 0 END) as devicesOffline
+        SUM(CASE WHEN last_heartbeat >= NOW() - INTERVAL 300 SECOND AND status = 'ONLINE' THEN 1 ELSE 0 END) as devicesOnline,
+        SUM(CASE WHEN last_heartbeat < NOW() - INTERVAL 300 SECOND OR last_heartbeat IS NULL OR status != 'ONLINE' THEN 1 ELSE 0 END) as devicesOffline
       FROM gate_devices
     `);
 

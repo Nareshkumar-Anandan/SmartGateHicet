@@ -407,12 +407,14 @@ class TimeWatchIdmsService {
       const socketOnlineMap = new Map(probeResults.map(p => [p.id, p.online]));
 
       // 4. Update status in database:
-      // A device is genuinely ONLINE only if TCP socket responds OR TimeWatch iDMS reports it as Online
+      // A device is ONLINE if TCP socket responds, TimeWatch iDMS reports Online, Auto-Registration socket is active, or heartbeat is recent
+      const autoRegisterService = require('./autoRegisterService');
       for (const d of dbDevices) {
         const isSocketOnline = socketOnlineMap.get(d.id) || false;
         const isIdmsOnline = liveMap.get(d.ip_address) || liveMap.get(d.serial_number) || false;
+        const isAutoRegOnline = autoRegisterService.isDeviceConnected(d.serial_number);
 
-        const isOnline = isSocketOnline || isIdmsOnline;
+        const isOnline = isSocketOnline || isIdmsOnline || isAutoRegOnline;
 
         if (isOnline) {
           await pool.query(
@@ -420,8 +422,11 @@ class TimeWatchIdmsService {
             [d.id]
           );
         } else {
+          // Only mark OFFLINE if last_heartbeat has expired (> 300 seconds) so cloud push / Auto-Registration heartbeats are preserved
           await pool.query(
-            `UPDATE gate_devices SET status = 'OFFLINE', updated_at = NOW() WHERE id = ?`,
+            `UPDATE gate_devices 
+             SET status = 'OFFLINE', updated_at = NOW() 
+             WHERE id = ? AND (last_heartbeat IS NULL OR last_heartbeat < NOW() - INTERVAL 300 SECOND)`,
             [d.id]
           );
         }

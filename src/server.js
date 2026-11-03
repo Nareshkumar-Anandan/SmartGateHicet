@@ -46,6 +46,8 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
     }
   }
 
+  const autoRegisterService = require('./services/autoRegisterService');
+
   return res.json({
     status: 'UP',
     system: 'Smart Hostel Gate Management System',
@@ -53,7 +55,8 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
     timestamp: new Date().toISOString(),
     database: dbOk ? 'CONNECTED' : 'DISCONNECTED',
     serverIp: localIp,
-    deviceAdapter: 'TimeWatch TrueFace3000 (ADPM) & Tripod Turnstile Bridge'
+    deviceAdapter: 'TimeWatch TrueFace3000 (ADPM) & Tripod Turnstile Bridge',
+    autoRegistration: autoRegisterService.getDiagnostics()
   });
 });
 
@@ -98,9 +101,9 @@ if (process.env.NODE_ENV !== 'test') {
       console.error('MySQL Database Connection Failed. Please check .env credentials.');
     }
 
-    // Start Auto-Registration TCP listener for TimeWatch / Dahua terminals
+    // Start Auto-Registration TCP listener for TimeWatch / Dahua terminals (Port 5050 + Multiplexed HTTP Port)
     const autoRegisterService = require('./services/autoRegisterService');
-    autoRegisterService.start();
+    autoRegisterService.start(PORT);
 
     // Start built-in TimeWatch Web API (TWAPI) server on port 8001
     const twapiServerService = require('./services/twapiServerService');
@@ -113,16 +116,10 @@ if (process.env.NODE_ENV !== 'test') {
     }
   });
 
-  // Catch non-HTTP raw TCP packets from terminal if sent to port 5000
+  // Adopt non-HTTP raw TCP Auto-Registration packets from TimeWatch terminals if sent to the HTTP port (e.g. 7000)
   server.on('clientError', (err, socket) => {
-    const clientIp = socket.remoteAddress ? socket.remoteAddress.replace(/^.*:/, '') : '';
-    console.log(`[RAW TCP / CLIENT ERROR on Port 5000] from ${clientIp}: ${err.message}`);
-    const fs = require('fs');
-    fs.appendFileSync(
-      path.resolve(__dirname, '../device_traffic.log'),
-      `[${new Date().toISOString()}] Port 5000 ClientError from ${clientIp}: ${err.message}\n`
-    );
-    socket.end();
+    const autoRegisterService = require('./services/autoRegisterService');
+    autoRegisterService.handleHttpClientError(err, socket, `HTTP:${PORT}`);
   });
 }
 
