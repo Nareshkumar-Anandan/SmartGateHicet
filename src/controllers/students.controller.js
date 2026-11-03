@@ -1,10 +1,11 @@
-const { pool, withTransaction } = require('../config/database');
+const { pool, withTransaction, ensureSchemaColumns } = require('../config/database');
 const { logAudit } = require('../middleware/auditLogger');
 const deviceManager = require('../services/deviceManager');
 const bulkStudentUploadService = require('../services/bulkStudentUploadService');
 
 async function getStudents(req, res, next) {
   try {
+    await ensureSchemaColumns();
     const {
       search,
       hostelId,
@@ -999,6 +1000,7 @@ async function deleteStudentFromTerminal(req, res, next) {
 
 async function importStudentsFromTerminal(req, res, next) {
   try {
+    await ensureSchemaColumns();
     const timewatchIdmsService = require('../services/timewatchIdmsService');
     const admsService = require('../services/admsService');
     const [devices] = await pool.query("SELECT * FROM gate_devices WHERE status != 'OFFLINE'");
@@ -1015,7 +1017,8 @@ async function importStudentsFromTerminal(req, res, next) {
     if (!machineUsers || machineUsers.length === 0) {
       try {
         const timewatchApiService = require('../services/timewatchApiService');
-        const userRes = await timewatchApiService.getUserDetail({});
+        const targetDeviceId = req.body?.deviceId || devices[0]?.serial_number || 'TW30000006260161';
+        const userRes = await timewatchApiService.getUserDetail({ DeviceID: targetDeviceId });
         if (userRes.success && userRes.data) {
           const list = Array.isArray(userRes.data) ? userRes.data : (userRes.data.Data || userRes.data.data || [userRes.data]);
           machineUsers = list.map(u => ({
@@ -1026,6 +1029,41 @@ async function importStudentsFromTerminal(req, res, next) {
         }
       } catch (err) {
         console.warn('[IMPORT WARN] TWAPI UserDetail fetch error:', err.message);
+      }
+    }
+
+    // 3. Fallback to bundled machine_enrolled_users.json (for Cloud VPS when private LAN 172.25.3.51:9001 is unreachable)
+    if (!machineUsers || machineUsers.length < 10) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const snapshotPath = path.resolve(__dirname, '../database/machine_enrolled_users.json');
+        if (fs.existsSync(snapshotPath)) {
+          const rawUsers = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+          if (Array.isArray(rawUsers) && rawUsers.length > 0) {
+            const snapshotMapped = rawUsers.map(r => ({
+              userId: String(r.biometric_device_id || r.student_id || '').trim(),
+              name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+              firstName: r.first_name,
+              lastName: r.last_name,
+              studentId: r.student_id,
+              department: r.department,
+              course: r.course,
+              yearOfStudy: r.year_of_study,
+              phone: r.phone,
+              parentPhone: r.parent_phone,
+              email: r.email,
+              card: r.card_number,
+              photoAvatar: r.photo_avatar,
+              photoUrl: r.photo_url,
+              institution: r.institution
+            }));
+            machineUsers = [...(machineUsers || []), ...snapshotMapped];
+            console.log(`[IMPORT] Loaded ${snapshotMapped.length} enrolled TimeWatch terminal users from machine_enrolled_users.json`);
+          }
+        }
+      } catch (snapErr) {
+        console.warn('[IMPORT WARN] Snapshot fallback error:', snapErr.message);
       }
     }
 
@@ -1048,8 +1086,11 @@ async function importStudentsFromTerminal(req, res, next) {
         distinctMap.set(pin, u);
       } else {
         const cur = distinctMap.get(pin);
-        if (!cur.name || cur.name.startsWith('User ')) cur.name = u.name;
+        if (!cur.name || cur.name.startsWith('User ') || cur.name.startsWith('Student ')) cur.name = u.name || cur.name;
         if (!cur.card && u.card) cur.card = u.card;
+        if (!cur.photoAvatar && u.photoAvatar) cur.photoAvatar = u.photoAvatar;
+        if (!cur.photoUrl && u.photoUrl) cur.photoUrl = u.photoUrl;
+        if (!cur.studentId && u.studentId) cur.studentId = u.studentId;
       }
     }
 
@@ -1069,16 +1110,17 @@ async function importStudentsFromTerminal(req, res, next) {
     for (const u of distinctMap.values()) {
       const pin = String(u.userId).trim();
       let rawName = (u.name || '').trim();
-      let firstName = '';
-      let lastName = '';
-      let institution = 'HICET';
-      let dept = 'Computer Science & Engineering';
+      let firstName = u.firstName || '';
+      let lastName = u.lastName !== undefined ? u.lastName : '';
+      let institution = u.institution || 'HICET';
+      let dept = u.department || 'Computer Science & Engineering';
 
       const existingStudent = existingByBioId.get(pin) ||
+                              (u.studentId && existingByRoll.get(String(u.studentId).toUpperCase())) ||
                               existingByRoll.get(`TW-${pin}`.toUpperCase());
 
       // Preserve existing valid student_id (e.g. real university roll number) if already assigned
-      let rollNo = existingStudent?.student_id || `TW-${pin}`;
+      let rollNo = existingStudent?.student_id || u.studentId || `TW-${pin}`;
 
       // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT)
       if (pin === '8' || rawName.toLowerCase().includes('emmanuvel')) {
@@ -1086,6 +1128,8 @@ async function importStudentsFromTerminal(req, res, next) {
         lastName = 'Simson';
         rollNo = '720826105011';
         institution = 'HIT';
+      } else if (firstName) {
+        // Already populated from snapshot
       } else if (!rawName || /^\d+$/.test(rawName)) {
         firstName = existingStudent?.first_name || 'Student';
         lastName = existingStudent?.last_name || pin;
@@ -1098,7 +1142,9 @@ async function importStudentsFromTerminal(req, res, next) {
       }
 
       const card = u.card ? String(u.card).trim() : (existingStudent?.card_number || null);
-      let email = existingStudent?.email || `${rollNo.toLowerCase()}@hicet.ac.in`;
+      let email = existingStudent?.email || u.email || `${rollNo.toLowerCase()}@hicet.ac.in`;
+      const photoAvatar = u.photoAvatar || u.photoUrl || null;
+      const photoUrl = u.photoUrl || u.photoAvatar || null;
 
       try {
         if (!existingStudent) {
@@ -1112,16 +1158,33 @@ async function importStudentsFromTerminal(req, res, next) {
 
           const [insertRes] = await pool.query(
             `INSERT INTO students 
-             (student_id, first_name, last_name, department, course, year_of_study, phone, parent_phone, email, current_location_status, biometric_device_id, biometric_enrolled, card_number, is_active, institution)
-             VALUES (?, ?, ?, ?, 'B.E.', 2, '9876543210', '9876543210', ?, 'INSIDE', ?, 1, ?, 1, ?)
+             (student_id, first_name, last_name, department, course, year_of_study, phone, parent_phone, email, current_location_status, biometric_device_id, biometric_enrolled, card_number, is_active, institution, photo_avatar, photo_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'INSIDE', ?, 1, ?, 1, ?, ?, ?)
              ON DUPLICATE KEY UPDATE 
                first_name = VALUES(first_name),
                last_name = VALUES(last_name),
                biometric_device_id = VALUES(biometric_device_id),
                biometric_enrolled = 1,
                is_active = 1,
+               photo_avatar = COALESCE(VALUES(photo_avatar), photo_avatar),
+               photo_url = COALESCE(VALUES(photo_url), photo_url),
                card_number = COALESCE(VALUES(card_number), card_number)`,
-            [rollNo, firstName, lastName, dept, email, pin, card, institution]
+            [
+              rollNo,
+              firstName,
+              lastName,
+              dept,
+              u.course || 'B.E.',
+              u.yearOfStudy || 2,
+              u.phone || '9876543210',
+              u.parentPhone || '9876543210',
+              email,
+              pin,
+              card,
+              institution,
+              photoAvatar,
+              photoUrl
+            ]
           );
 
           const newId = insertRes.insertId;
@@ -1129,7 +1192,7 @@ async function importStudentsFromTerminal(req, res, next) {
           existingByBioId.set(pin, insertedRecord);
           existingByRoll.set(rollNo.toUpperCase(), insertedRecord);
           existingByEmail.set(email.toLowerCase(), insertedRecord);
-          imported.push({ id: newId, studentId: rollNo, name: `${firstName} ${lastName}`, pin, card, institution });
+          imported.push({ id: newId, studentId: rollNo, name: `${firstName} ${lastName}`.trim(), pin, card, institution });
         } else {
           await pool.query(
             `UPDATE students 
@@ -1139,12 +1202,14 @@ async function importStudentsFromTerminal(req, res, next) {
                  institution = ?,
                  department = ?,
                  biometric_device_id = ?,
+                 photo_avatar = COALESCE(?, photo_avatar),
+                 photo_url = COALESCE(?, photo_url),
                  card_number = COALESCE(?, card_number),
                  is_active = 1
              WHERE id = ?`,
-            [firstName, lastName, institution, dept, pin, card, existingStudent.id]
+            [firstName, lastName, institution, dept, pin, photoAvatar, photoUrl, card, existingStudent.id]
           );
-          updated.push({ id: existingStudent.id, studentId: existingStudent.student_id || rollNo, name: `${firstName} ${lastName}`, pin, institution });
+          updated.push({ id: existingStudent.id, studentId: existingStudent.student_id || rollNo, name: `${firstName} ${lastName}`.trim(), pin, institution });
         }
       } catch (sqlErr) {
         console.warn(`[IMPORT USER DB WARN] PIN ${pin}:`, sqlErr.message);
