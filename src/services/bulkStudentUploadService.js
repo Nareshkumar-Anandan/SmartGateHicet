@@ -184,9 +184,9 @@ class BulkStudentUploadService {
         institution: institution || 'Hindusthan Institute of Technology (HICET)',
         year,
         department,
-        hostelName: hostelName || 'Kaveri Boys Hostel (Block A)',
-        floor: floor || '1',
-        roomNo: roomNo || '101',
+        hostelName: hostelName || '',
+        floor: floor || '',
+        roomNo: roomNo || '',
         guardianName,
         dob,
         gender: gender ? gender.toUpperCase() : 'MALE',
@@ -228,7 +228,7 @@ class BulkStudentUploadService {
       hostelMap.set(h.name.toLowerCase(), h.id);
       hostelMap.set(h.code.toLowerCase(), h.id);
     });
-    const defaultHostelId = hostels[0]?.id || 1;
+    const defaultHostelId = hostels[0]?.id || null;
 
     // Fetch rooms
     const [rooms] = await pool.query('SELECT id, hostel_id, room_number, floor, capacity, current_occupancy FROM rooms');
@@ -250,7 +250,7 @@ class BulkStudentUploadService {
         const cleanReg = student.regNo;
         const nameParts = student.studentName.trim().split(' ');
         const firstName = nameParts[0] || student.studentName;
-        const lastName = nameParts.slice(1).join(' ') || '.';
+        const lastName = nameParts.slice(1).join(' ') || '';
 
         // 2. Resolve photo
         let photoAvatar = null;
@@ -277,8 +277,8 @@ class BulkStudentUploadService {
           }
         }
 
-        // 3. Resolve Hostel
-        let targetHostelId = defaultHostelId;
+        // 3. Resolve Hostel (only if specified and exists)
+        let targetHostelId = null;
         if (student.hostelName) {
           const hKey = student.hostelName.toLowerCase();
           for (const [k, hid] of hostelMap.entries()) {
@@ -289,9 +289,9 @@ class BulkStudentUploadService {
           }
         }
 
-        // 4. Resolve Room with ON DUPLICATE KEY protection
+        // 4. Resolve Room with ON DUPLICATE KEY protection (only if targetHostelId and roomNo exist)
         let targetRoomId = null;
-        if (student.roomNo && String(student.roomNo).trim()) {
+        if (targetHostelId && student.roomNo && String(student.roomNo).trim()) {
           const roomClean = String(student.roomNo).trim();
           const roomKey = `${targetHostelId}:${roomClean}`;
           let room = roomMap.get(roomKey);
@@ -327,12 +327,14 @@ class BulkStudentUploadService {
           }
         }
 
-        // 5. Determine numeric PIN for biometric terminal with collision checking
-        let assignedPin = String(nextNumericPin++);
-        while (true) {
-          const [[pinRow]] = await pool.query('SELECT id FROM students WHERE biometric_device_id = ?', [assignedPin]);
-          if (!pinRow) break;
-          assignedPin = String(nextNumericPin++);
+        // 5. Determine numeric PIN for biometric terminal (prefer numeric register number if available)
+        let assignedPin = /^\d+$/.test(cleanReg) ? cleanReg : String(nextNumericPin++);
+        if (assignedPin !== cleanReg) {
+          while (true) {
+            const [[pinRow]] = await pool.query('SELECT id FROM students WHERE biometric_device_id = ?', [assignedPin]);
+            if (!pinRow) break;
+            assignedPin = String(nextNumericPin++);
+          }
         }
 
         // 6. Safe field sizing

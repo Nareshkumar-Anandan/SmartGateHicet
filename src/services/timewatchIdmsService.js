@@ -437,24 +437,37 @@ class TimeWatchIdmsService {
   }
 
   /**
+   * Extract all non-submit input values from ASP.NET HTML forms
+   */
+  _extractAllFormInputs(html) {
+    const params = new URLSearchParams();
+    const inputs = html.match(/<input[^>]+>/gi) || [];
+    for (const inp of inputs) {
+      const nameMatch = inp.match(/name=["']([^"']+)["']/i);
+      const valMatch = inp.match(/value=["']([^"']*)["']/i);
+      const typeMatch = inp.match(/type=["']([^"']+)["']/i);
+      const name = nameMatch ? nameMatch[1] : '';
+      const val = valMatch ? valMatch[1] : '';
+      const type = typeMatch ? typeMatch[1].toLowerCase() : '';
+      if (name && type !== 'submit' && type !== 'button' && type !== 'image') {
+        params.append(name, val);
+      }
+    }
+    return params;
+  }
+
+  /**
    * Fetch enrolled biometric users from UserList.aspx
-   * Uses fast server-side Excel export to retrieve all 800+ enrolled users across all pages,
-   * with seamless fallback to HTML table parsing.
+   * Uses fast server-side Excel export to retrieve all enrolled users across all pages,
+   * with seamless fallback to multi-page HTML table parsing.
    */
   async getEnrolledUsers() {
     await this.login();
 
-    // 1. Try Excel export first (contains ALL 800+ users across all pages in 1 request)
+    // 1. Try Excel export first (contains ALL enrolled users across all 56+ pages in 1 request)
     try {
       const initPage = await this._authenticatedGet('/UserList.aspx');
-      const viewstate = this._extractInput(initPage.body, '__VIEWSTATE');
-      const viewstateGen = this._extractInput(initPage.body, '__VIEWSTATEGENERATOR');
-      const eventVal = this._extractInput(initPage.body, '__EVENTVALIDATION');
-
-      const postParams = new URLSearchParams();
-      postParams.append('__VIEWSTATE', viewstate);
-      if (viewstateGen) postParams.append('__VIEWSTATEGENERATOR', viewstateGen);
-      if (eventVal) postParams.append('__EVENTVALIDATION', eventVal);
+      const postParams = this._extractAllFormInputs(initPage.body);
       postParams.append('ctl00$ContentPlaceHolder1$ASPxButton2', 'Export');
 
       const exportRes = await this._postBuffer('/UserList.aspx', postParams.toString(), this.sessionCookie);
@@ -502,7 +515,7 @@ class TimeWatchIdmsService {
           }
 
           const userList = Array.from(usersMap.values());
-          console.log(`[TIMEWATCH IDMS] Successfully exported and parsed ${userList.length} unique enrolled users from TimeWatch server.`);
+          console.log(`[TIMEWATCH IDMS] Successfully exported and parsed ${userList.length} unique enrolled users (${rawRows.length} device records) from TimeWatch server.`);
           return userList;
         }
       }
@@ -572,8 +585,8 @@ class TimeWatchIdmsService {
       let rawName = (u.name || '').trim();
       let firstName = '';
       let lastName = '';
-      let rollNo = `TW-${pin}`;
-      let institution = 'HICET';
+      let rollNo = pin;
+      let institution = pin.startsWith('7208') ? 'HIT' : 'HICET';
       let dept = 'Computer Science & Engineering';
 
       // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT)
@@ -590,7 +603,7 @@ class TimeWatchIdmsService {
         const cleanName = rawName.replace(/^[A-Z]\./, '').trim(); // Remove leading initials like D.
         const parts = (cleanName || rawName).split(/\s+/);
         firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : 'Student';
-        lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '(Terminal)');
+        lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '');
       }
 
       const card = u.card || null;
@@ -613,7 +626,7 @@ class TimeWatchIdmsService {
 
       imported.push({
         userId: pin,
-        name: `${firstName} ${lastName}`,
+        name: `${firstName} ${lastName}`.trim(),
         card,
         studentId: rollNo,
         institution
@@ -798,6 +811,12 @@ class TimeWatchIdmsService {
    * Helper to execute browser automation under a mutex lock to avoid concurrent session conflicts
    */
   async _withBrowser(fn) {
+    const fs = require('fs');
+    const edgePath = this._getEdgeExecutable();
+    if (!fs.existsSync(edgePath)) {
+      return { success: false, skipped: true, reason: 'Local browser executable not present on this server' };
+    }
+
     if (!this._browserLock) {
       this._browserLock = Promise.resolve();
     }
@@ -1471,17 +1490,17 @@ class TimeWatchIdmsService {
     }
 
     const initPage = await this._authenticatedGet('/UserPhoto.aspx');
-    const viewstate = this._extractInput(initPage.body, '__VIEWSTATE');
-    const viewstateGen = this._extractInput(initPage.body, '__VIEWSTATEGENERATOR');
-    const eventVal = this._extractInput(initPage.body, '__EVENTVALIDATION');
+    const baseFormInputs = this._extractAllFormInputs(initPage.body);
 
-    // Parse page count (e.g. Page 1 of 7 (674 items))
+    // Parse page count (e.g. Page 1 of 50 (4910 items))
     const pageMatch = initPage.body.match(/Page \d+ of (\d+)/i);
-    const totalPages = pageMatch ? parseInt(pageMatch[1], 10) : 7;
+    const totalPages = pageMatch ? parseInt(pageMatch[1], 10) : 50;
 
     const userPhotoMap = new Map(); // uid -> { dev, uid, name, imgUrl }
 
-    const parseHtmlRows = (html) => {
+    const parseHtmlRows = (rawHtml) => {
+      const html = String(rawHtml || '').replace(/\\"/g, '"').replace(/\\'/g, "'");
+      const pageItems = [];
       const rows = html.match(/<tr id="ContentPlaceHolder1_ASPxGridView1_DXDataRow\d+"[\s\S]*?<\/tr>/gi) || [];
       for (const r of rows) {
         const cells = (r.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || []).map(c => c.replace(/<[^>]+>/g, '').trim());
@@ -1492,85 +1511,94 @@ class TimeWatchIdmsService {
         const imgUrl = imgMatch ? imgMatch[1] : null;
 
         if (uid && imgUrl && !userPhotoMap.has(uid)) {
-          userPhotoMap.set(uid, { dev, uid, name, imgUrl });
+          const item = { dev, uid, name, imgUrl };
+          userPhotoMap.set(uid, item);
+          pageItems.push(item);
         }
       }
+      return pageItems;
     };
 
-    // 1. Parse initial page (Page 0)
-    parseHtmlRows(initPage.body);
+    let dbAvailable = true;
+    try {
+      await pool.query('SELECT 1');
+    } catch (_) {
+      dbAvailable = false;
+    }
 
-    // 2. Fetch remaining pages
+    let updatedCount = 0;
+    const processPageItems = async (pageItems) => {
+      if (!pageItems || pageItems.length === 0) return;
+      await Promise.all(pageItems.map(async (item) => {
+        try {
+          const fileName = `${item.uid}.jpg`;
+          const filePath = path.join(uploadDir, fileName);
+          let hasValidFile = fs.existsSync(filePath) && fs.statSync(filePath).size > 500;
+
+          if (!hasValidFile) {
+            const buf = await this.downloadImageBuffer(item.imgUrl);
+            if (buf && buf.length > 500) {
+              fs.writeFileSync(filePath, buf);
+              hasValidFile = true;
+            }
+          }
+
+          if (hasValidFile) {
+            if (dbAvailable) {
+              const avatarPath = `/uploads/students/${fileName}`;
+              const rollNo = item.uid;
+              let firstName = '';
+              let lastName = '';
+              if (item.name && !/^\d+$/.test(item.name)) {
+                const cleanName = item.name.replace(/^[A-Z]\./, '').trim();
+                const parts = (cleanName || item.name).split(/\s+/);
+                firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : '';
+                lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+              }
+
+              try {
+                if (firstName) {
+                  await pool.query(
+                    `UPDATE students 
+                     SET photo_avatar = ?, photo_url = ?, first_name = ?, last_name = ? 
+                     WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
+                    [avatarPath, avatarPath, firstName, lastName, item.uid, rollNo, `TW-${item.uid}`]
+                  );
+                } else {
+                  await pool.query(
+                    `UPDATE students 
+                     SET photo_avatar = ?, photo_url = ? 
+                     WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
+                    [avatarPath, avatarPath, item.uid, rollNo, `TW-${item.uid}`]
+                  );
+                }
+              } catch (_) {}
+            }
+            updatedCount++;
+          }
+        } catch (_) {}
+      }));
+    };
+
+    // 1. Parse and download initial page (Page 0) immediately while DXCache tokens are live
+    await processPageItems(parseHtmlRows(initPage.body));
+
+    // 2. Fetch remaining pages sequentially so ASP.NET session state & DXCache stay valid
     for (let p = 1; p < totalPages; p++) {
       try {
-        const params = new URLSearchParams();
-        params.append('__VIEWSTATE', viewstate);
-        if (viewstateGen) params.append('__VIEWSTATEGENERATOR', viewstateGen);
-        if (eventVal) params.append('__EVENTVALIDATION', eventVal);
-        params.append('__CALLBACKID', 'ctl00$ContentPlaceHolder1$ASPxGridView1');
-        params.append('__CALLBACKPARAM', `c0:KV|2;[];GB|20;12|PAGERONCLICK3|PN${p};`);
+        const params = new URLSearchParams(baseFormInputs.toString());
+        params.set('__CALLBACKID', 'ctl00$ContentPlaceHolder1$ASPxGridView1');
+        params.set('__CALLBACKPARAM', `c0:KV|2;[];GB|20;12|PAGERONCLICK3|PN${p};`);
 
         const res = await this._post('/UserPhoto.aspx', params.toString(), this.sessionCookie);
-        parseHtmlRows(res.body);
+        const newItems = parseHtmlRows(res.body);
+        await processPageItems(newItems);
       } catch (err) {
         console.warn(`[TIMEWATCH PHOTOS WARN] Failed fetching page ${p + 1}: ${err.message}`);
       }
     }
 
-    console.log(`[TIMEWATCH PHOTOS] Found ${userPhotoMap.size} students with enrolled photos on server.`);
-
-    // 3. Download photos and update database in controlled batches
-    const items = Array.from(userPhotoMap.values());
-    let updatedCount = 0;
-    const batchSize = 10;
-
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (item) => {
-        try {
-          const buf = await this.downloadImageBuffer(item.imgUrl);
-          if (buf && buf.length > 500) {
-            const fileName = `${item.uid}.jpg`;
-            const filePath = path.join(uploadDir, fileName);
-            fs.writeFileSync(filePath, buf);
-
-            const avatarPath = `/uploads/students/${fileName}`;
-            const rollNo = `TW-${item.uid}`;
-
-            // Clean real name if available
-            let firstName = '';
-            let lastName = '';
-            if (item.name && !/^\d+$/.test(item.name)) {
-              const cleanName = item.name.replace(/^[A-Z]\./, '').trim();
-              const parts = (cleanName || item.name).split(/\s+/);
-              firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : '';
-              lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
-            }
-
-            if (firstName) {
-              await pool.query(
-                `UPDATE students 
-                 SET photo_avatar = ?, photo_url = ?, first_name = ?, last_name = ? 
-                 WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
-                [avatarPath, avatarPath, firstName, lastName, item.uid, rollNo, `TW-${item.uid}`]
-              );
-            } else {
-              await pool.query(
-                `UPDATE students 
-                 SET photo_avatar = ?, photo_url = ? 
-                 WHERE biometric_device_id = ? OR student_id = ? OR student_id = ?`,
-                [avatarPath, avatarPath, item.uid, rollNo, `TW-${item.uid}`]
-              );
-            }
-            updatedCount++;
-          }
-        } catch (downloadErr) {
-          // Ignore individual photo download error
-        }
-      }));
-    }
-
-    console.log(`[TIMEWATCH PHOTOS] Completed. Downloaded and mapped ${updatedCount} student photos successfully!`);
+    console.log(`[TIMEWATCH PHOTOS] Completed. Found ${userPhotoMap.size} unique student photos, downloaded/mapped ${updatedCount}!`);
     return {
       success: true,
       totalPhotosOnServer: userPhotoMap.size,

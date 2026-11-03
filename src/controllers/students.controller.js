@@ -204,12 +204,13 @@ async function createStudent(req, res, next) {
       photo_avatar
     } = req.body;
 
-    if (!student_id || !first_name || !last_name || !department || !phone || !parent_phone || !email) {
+    if (!student_id || !first_name || !department || !phone || !parent_phone || !email) {
       return res.status(400).json({
         success: false,
-        message: 'Required fields: student_id, first_name, last_name, department, phone, parent_phone, email.'
+        message: 'Required fields: student_id, first_name, department, phone, parent_phone, email.'
       });
     }
+    const safeLastName = last_name ? String(last_name).trim() : '';
 
     // Check unique student ID and email
     const [existing] = await pool.query(
@@ -245,8 +246,8 @@ async function createStudent(req, res, next) {
     }
 
     let assignedBioId = biometric_device_id ? String(biometric_device_id).trim() : null;
-    if (!assignedBioId || !/^\d{1,9}$/.test(assignedBioId)) {
-      if (/^\d{1,9}$/.test(String(student_id).trim())) {
+    if (!assignedBioId || !/^\d{1,20}$/.test(assignedBioId)) {
+      if (/^\d{1,20}$/.test(String(student_id).trim())) {
         assignedBioId = String(student_id).trim();
       } else {
         // Find highest numeric PIN currently in use so we assign next clean integer ID (e.g. 8, 9, 10...)
@@ -290,7 +291,7 @@ async function createStudent(req, res, next) {
         [
           student_id.trim(),
           first_name.trim(),
-          last_name.trim(),
+          safeLastName,
           department.trim(),
           course,
           parseInt(year_of_study, 10),
@@ -371,11 +372,12 @@ async function createStudent(req, res, next) {
         }
       }
 
+      const fullCleanName = `${first_name.trim()} ${safeLastName}`.trim();
       for (const dev of devices) {
         // Queue real ADMS hardware command
         admsService.queueCommand(
           dev.serial_number,
-          `DATA UPDATE USER PIN=${assignedBioId}\tName=${first_name.trim()} ${last_name.trim()}\tCard=${card_number ? card_number.trim() : ''}\tPri=0\tGrp=1`
+          `DATA UPDATE USER PIN=${assignedBioId}\tName=${fullCleanName}\tCard=${card_number ? card_number.trim() : ''}\tPri=0\tGrp=1`
         );
 
         if (photoBase64) {
@@ -388,7 +390,7 @@ async function createStudent(req, res, next) {
         // Also push via TWAPI AddUser
         timewatchApiService.addUser({
           UserID: assignedBioId,
-          Name: `${first_name.trim()} ${last_name.trim()}`,
+          Name: fullCleanName,
           DeviceID: dev.serial_number,
           Card: card_number ? card_number.trim() : '',
           FaceTemplate: photoBase64 || ''
@@ -400,18 +402,18 @@ async function createStudent(req, res, next) {
       // Push student directly to TimeWatch iDMS server and physical turnstiles (including face photo)
       timewatchIdmsService.pushStudentToTurnstiles({
         pin: assignedBioId,
-        name: `${first_name.trim()} ${last_name.trim()}`,
+        name: fullCleanName,
         department: department.trim(),
         cardNumber: card_number ? card_number.trim() : '',
         photoPath: resolvedPhotoPath || finalPhotoAvatar,
         photoBase64: photoBase64
       }).then(() => {
-        console.log(`[TIMEWATCH iDMS SYNC] Successfully uploaded ${first_name} ${last_name} (${assignedBioId}) with photo to turnstiles.`);
+        console.log(`[TIMEWATCH iDMS SYNC] Successfully uploaded ${fullCleanName} (${assignedBioId}) with photo to turnstiles.`);
       }).catch(err => {
         console.warn('[TIMEWATCH iDMS SYNC WARN]', err.message);
       });
 
-      console.log(`[2-WAY SYNC] Pushed student ${first_name} ${last_name} (PIN: ${assignedBioId}) to ${devices.length} TimeWatch gate terminal(s).`);
+      console.log(`[2-WAY SYNC] Pushed student ${fullCleanName} (PIN: ${assignedBioId}) to ${devices.length} TimeWatch gate terminal(s).`);
     } catch (syncErr) {
       console.warn('[AUTO-SYNC TO DEVICES WARN]', syncErr.message);
     }
@@ -631,8 +633,8 @@ async function syncStudentToTerminal(req, res, next) {
     const path = require('path');
     const results = [];
     let bioId = student.biometric_device_id ? String(student.biometric_device_id).trim() : null;
-    if (!bioId || !/^\d{1,9}$/.test(bioId)) {
-      if (/^\d{1,9}$/.test(String(student.student_id).trim())) {
+    if (!bioId || !/^\d{1,20}$/.test(bioId)) {
+      if (/^\d{1,20}$/.test(String(student.student_id).trim())) {
         bioId = String(student.student_id).trim();
       } else {
         bioId = String(student.id);
@@ -1003,14 +1005,21 @@ async function importStudentsFromTerminal(req, res, next) {
     await ensureSchemaColumns();
     const timewatchIdmsService = require('../services/timewatchIdmsService');
     const admsService = require('../services/admsService');
+    const fs = require('fs');
+    const path = require('path');
     const [devices] = await pool.query("SELECT * FROM gate_devices WHERE status != 'OFFLINE'");
 
-    // 1. Fetch enrolled users directly from TimeWatch iDMS server (UserList.aspx)
-    let machineUsers = [];
-    try {
-      machineUsers = await timewatchIdmsService.getEnrolledUsers();
-    } catch (err) {
-      console.warn('[IMPORT WARN] iDMS UserList fetch error:', err.message);
+    // 1. Accept live machine users pushed from LAN bridge/middleware or fetch directly from TimeWatch iDMS server (UserList.aspx)
+    let machineUsers = Array.isArray(req.body?.machineUsers) && req.body.machineUsers.length > 0
+      ? req.body.machineUsers
+      : [];
+
+    if (machineUsers.length === 0) {
+      try {
+        machineUsers = await timewatchIdmsService.getEnrolledUsers();
+      } catch (err) {
+        console.warn('[IMPORT WARN] iDMS UserList fetch error:', err.message);
+      }
     }
 
     // 2. Fallback to TWAPI if iDMS had none
@@ -1032,41 +1041,6 @@ async function importStudentsFromTerminal(req, res, next) {
       }
     }
 
-    // 3. Fallback to bundled machine_enrolled_users.json (for Cloud VPS when private LAN 172.25.3.51:9001 is unreachable)
-    if (!machineUsers || machineUsers.length < 10) {
-      try {
-        const fs = require('fs');
-        const path = require('path');
-        const snapshotPath = path.resolve(__dirname, '../database/machine_enrolled_users.json');
-        if (fs.existsSync(snapshotPath)) {
-          const rawUsers = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-          if (Array.isArray(rawUsers) && rawUsers.length > 0) {
-            const snapshotMapped = rawUsers.map(r => ({
-              userId: String(r.biometric_device_id || r.student_id || '').trim(),
-              name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-              firstName: r.first_name,
-              lastName: r.last_name,
-              studentId: r.student_id,
-              department: r.department,
-              course: r.course,
-              yearOfStudy: r.year_of_study,
-              phone: r.phone,
-              parentPhone: r.parent_phone,
-              email: r.email,
-              card: r.card_number,
-              photoAvatar: r.photo_avatar,
-              photoUrl: r.photo_url,
-              institution: r.institution
-            }));
-            machineUsers = [...(machineUsers || []), ...snapshotMapped];
-            console.log(`[IMPORT] Loaded ${snapshotMapped.length} enrolled TimeWatch terminal users from machine_enrolled_users.json`);
-          }
-        }
-      } catch (snapErr) {
-        console.warn('[IMPORT WARN] Snapshot fallback error:', snapErr.message);
-      }
-    }
-
     if (!machineUsers || machineUsers.length === 0) {
       return res.json({
         success: false,
@@ -1076,14 +1050,15 @@ async function importStudentsFromTerminal(req, res, next) {
 
     const imported = [];
     const updated = [];
+    const uploadDir = path.resolve(__dirname, '../../uploads/students');
 
     // Deduplicate by userId
     const distinctMap = new Map();
     for (const u of machineUsers) {
-      const pin = String(u.userId).trim();
-      if (!pin || pin === 'ALL') continue;
+      const pin = String(u.userId || u.biometric_device_id || u.student_id || '').trim();
+      if (!pin || pin === 'ALL' || pin === 'undefined') continue;
       if (!distinctMap.has(pin)) {
-        distinctMap.set(pin, u);
+        distinctMap.set(pin, { ...u, userId: pin });
       } else {
         const cur = distinctMap.get(pin);
         if (!cur.name || cur.name.startsWith('User ') || cur.name.startsWith('Student ')) cur.name = u.name || cur.name;
@@ -1096,7 +1071,7 @@ async function importStudentsFromTerminal(req, res, next) {
 
     // Pre-load all existing students into memory for fast O(1) lookup
     const [allExisting] = await pool.query(
-      'SELECT id, student_id, first_name, last_name, biometric_device_id, card_number, biometric_enrolled, email FROM students'
+      'SELECT id, student_id, first_name, last_name, biometric_device_id, card_number, biometric_enrolled, email, photo_avatar, photo_url FROM students'
     );
     const existingByBioId = new Map();
     const existingByRoll = new Map();
@@ -1112,47 +1087,69 @@ async function importStudentsFromTerminal(req, res, next) {
       let rawName = (u.name || '').trim();
       let firstName = u.firstName || '';
       let lastName = u.lastName !== undefined ? u.lastName : '';
-      let institution = u.institution || 'HICET';
+      let institution = u.institution || (pin.startsWith('7208') ? 'HIT' : 'HICET');
       let dept = u.department || 'Computer Science & Engineering';
 
       const existingStudent = existingByBioId.get(pin) ||
                               (u.studentId && existingByRoll.get(String(u.studentId).toUpperCase())) ||
+                              existingByRoll.get(pin.toUpperCase()) ||
                               existingByRoll.get(`TW-${pin}`.toUpperCase());
 
-      // Preserve existing valid student_id (e.g. real university roll number) if already assigned
-      let rollNo = existingStudent?.student_id || u.studentId || `TW-${pin}`;
+      // Use real PIN / University Roll Number directly instead of prefixing with TW-
+      let rollNo = pin;
+      if (existingStudent?.student_id && !String(existingStudent.student_id).toUpperCase().startsWith('TW-')) {
+        rollNo = existingStudent.student_id;
+      } else if (u.studentId && !String(u.studentId).toUpperCase().startsWith('TW-')) {
+        rollNo = String(u.studentId).trim();
+      }
 
-      // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT)
+      // Special mapping for known students like Emmanuvel Simson (PIN 8, Register 720826105011, HIT) & Nareshkumar Anandan (PIN 155)
       if (pin === '8' || rawName.toLowerCase().includes('emmanuvel')) {
         firstName = 'Emmanuvel';
         lastName = 'Simson';
         rollNo = '720826105011';
         institution = 'HIT';
+      } else if (pin === '155') {
+        firstName = 'Nareshkumar';
+        lastName = 'Anandan';
+        rollNo = '155';
+        if (!u.email) u.email = 'nareshkumaranandan77@gmail.com';
+        if (!u.phone) u.phone = '+919790550429';
+        if (!u.parentPhone) u.parentPhone = '9790550429';
       } else if (firstName) {
-        // Already populated from snapshot
+        if (lastName === '(Student)' || lastName === '(Terminal)') lastName = '';
       } else if (!rawName || /^\d+$/.test(rawName)) {
-        firstName = existingStudent?.first_name || 'Student';
-        lastName = existingStudent?.last_name || pin;
+        const existingFirst = existingStudent?.first_name;
+        const existingLast = (existingStudent?.last_name === '(Student)' || existingStudent?.last_name === '(Terminal)')
+          ? ''
+          : (existingStudent?.last_name || '');
+        firstName = existingFirst && existingFirst !== 'Student' ? existingFirst : 'Student';
+        lastName = firstName === 'Student' ? pin : existingLast;
       } else {
-        // Clean and format student name
+        // Clean and format student name from machine
         const cleanName = rawName.replace(/^[A-Z]\./, '').trim();
         const parts = (cleanName || rawName).split(/\s+/);
         firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : 'Student';
-        lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '(Student)');
+        lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || (rawName.startsWith('D.') ? 'D' : '');
       }
 
       const card = u.card ? String(u.card).trim() : (existingStudent?.card_number || null);
-      let email = existingStudent?.email || u.email || `${rollNo.toLowerCase()}@hicet.ac.in`;
-      const photoAvatar = u.photoAvatar || u.photoUrl || null;
-      const photoUrl = u.photoUrl || u.photoAvatar || null;
+      let email = (existingStudent?.email && !existingStudent.email.startsWith('tw-'))
+        ? existingStudent.email
+        : (u.email || `${rollNo.toLowerCase()}@hicet.ac.in`);
+
+      const localPhotoExists = fs.existsSync(path.join(uploadDir, `${pin}.jpg`));
+      const defaultPhotoPath = (localPhotoExists || u.hasFace) ? `/uploads/students/${pin}.jpg` : null;
+      const photoAvatar = u.photoAvatar || u.photoUrl || defaultPhotoPath || existingStudent?.photo_avatar || null;
+      const photoUrl = u.photoUrl || u.photoAvatar || defaultPhotoPath || existingStudent?.photo_url || null;
 
       try {
         if (!existingStudent) {
           // If email is already in use by another record, disambiguate with PIN
           if (existingByEmail.has(email.toLowerCase())) {
-            email = `tw-${pin}@hicet.ac.in`;
+            email = `${pin.toLowerCase()}@hicet.ac.in`;
             if (existingByEmail.has(email.toLowerCase())) {
-              email = `tw-${pin}-${Date.now()}@hicet.ac.in`;
+              email = `${pin.toLowerCase()}-${Date.now()}@hicet.ac.in`;
             }
           }
 
@@ -1196,7 +1193,8 @@ async function importStudentsFromTerminal(req, res, next) {
         } else {
           await pool.query(
             `UPDATE students 
-             SET biometric_enrolled = 1,
+             SET student_id = ?,
+                 biometric_enrolled = 1,
                  first_name = ?,
                  last_name = ?,
                  institution = ?,
@@ -1207,9 +1205,9 @@ async function importStudentsFromTerminal(req, res, next) {
                  card_number = COALESCE(?, card_number),
                  is_active = 1
              WHERE id = ?`,
-            [firstName, lastName, institution, dept, pin, photoAvatar, photoUrl, card, existingStudent.id]
+            [rollNo, firstName, lastName, institution, dept, pin, photoAvatar, photoUrl, card, existingStudent.id]
           );
-          updated.push({ id: existingStudent.id, studentId: existingStudent.student_id || rollNo, name: `${firstName} ${lastName}`.trim(), pin, institution });
+          updated.push({ id: existingStudent.id, studentId: rollNo, name: `${firstName} ${lastName}`.trim(), pin, institution });
         }
       } catch (sqlErr) {
         console.warn(`[IMPORT USER DB WARN] PIN ${pin}:`, sqlErr.message);
@@ -1219,7 +1217,7 @@ async function importStudentsFromTerminal(req, res, next) {
       for (const dev of devices) {
         admsService.queueCommand(
           dev.serial_number,
-          `DATA UPDATE USER PIN=${pin}\tName=${firstName} ${lastName}\tCard=${card || ''}\tPri=0\tGrp=1`,
+          `DATA UPDATE USER PIN=${pin}\tName=${`${firstName} ${lastName}`.trim()}\tCard=${card || ''}\tPri=0\tGrp=1`,
           true
         );
       }
