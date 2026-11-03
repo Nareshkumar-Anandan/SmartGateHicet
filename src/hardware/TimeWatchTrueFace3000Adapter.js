@@ -37,10 +37,17 @@ class TimeWatchTrueFace3000Adapter extends DeviceAdapterInterface {
   async getStatus() {
     let isLive = false;
 
-    // 1. Check if recent heartbeat exists (within 120s)
-    if (this.deviceConfig.last_heartbeat) {
-      const hbTime = new Date(this.deviceConfig.last_heartbeat).getTime();
-      if (Date.now() - hbTime < 120000 && this.deviceConfig.status === 'ONLINE') {
+    // 0. Check if active Auto-Registration socket is connected for this serial number
+    const autoRegisterService = require('../services/autoRegisterService');
+    if (autoRegisterService.isDeviceConnected(this.serialNumber)) {
+      isLive = true;
+    }
+
+    // 1. Check if recent heartbeat exists (within 300s)
+    if (!isLive && this.deviceConfig.last_heartbeat) {
+      const hbStr = String(this.deviceConfig.last_heartbeat);
+      const hbTime = new Date(hbStr.includes('T') ? hbStr : hbStr.replace(' ', 'T') + 'Z').getTime();
+      if (Date.now() - hbTime < 300000 && this.deviceConfig.status === 'ONLINE') {
         isLive = true;
       }
     }
@@ -104,8 +111,24 @@ class TimeWatchTrueFace3000Adapter extends DeviceAdapterInterface {
       };
     }
 
-    // Direct Physical Hardware Trigger via Dahua/TimeWatch CGI
-    if (this.ip) {
+    // 1. Try active Auto-Registration TCP socket first (works across Cloud VPS -> College NAT)
+    const autoRegisterService = require('../services/autoRegisterService');
+    if (autoRegisterService.isDeviceConnected(this.serialNumber)) {
+      const triggered = await autoRegisterService.triggerRelay(this.serialNumber);
+      if (triggered) {
+        return {
+          success: true,
+          ip: this.ip,
+          relayPin: this.deviceConfig.turnstile_relay_pin || 1,
+          durationMs,
+          mode: 'AUTO_REGISTER_SOCKET',
+          message: `TimeWatch TrueFace3000 barrier unlock command dispatched over active Auto-Registration socket to ${this.serialNumber}.`
+        };
+      }
+    }
+
+    // 2. Direct Physical Hardware Trigger via Dahua/TimeWatch CGI (when on local LAN)
+    if (this.ip && !this.ip.startsWith('121.200.')) {
       console.log(`[HARDWARE DISPATCH] Sending direct CGI openDoor command to ${this.ip}:80 (Channel 1)...`);
       try {
         const cgiResult = await timewatchHardwareCgiService.openBarrier(this.ip, 1);
