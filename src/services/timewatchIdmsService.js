@@ -545,6 +545,8 @@ class TimeWatchIdmsService {
           if (rawName === uid || /^\d+$/.test(rawName)) rawName = '';
           const card = rec.CardNo ? String(rec.CardNo).trim() : null;
 
+          const photoPath = `/uploads/students/${uid}.jpg`;
+
           if (!usersMap.has(uid)) {
             usersMap.set(uid, {
               serialNumber: sn,
@@ -553,12 +555,19 @@ class TimeWatchIdmsService {
               name: rawName,
               card: card || null,
               hasFace: true,
+              photoAvatar: photoPath,
+              photoUrl: photoPath,
               devices: [sn]
             });
           } else {
             const cur = usersMap.get(uid);
             if (!cur.name && rawName) cur.name = rawName;
             if (!cur.card && card) cur.card = card;
+            if (!cur.photoAvatar) {
+              cur.photoAvatar = photoPath;
+              cur.photoUrl = photoPath;
+              cur.hasFace = true;
+            }
             if (!cur.devices.includes(sn)) cur.devices.push(sn);
           }
         }
@@ -569,6 +578,32 @@ class TimeWatchIdmsService {
     }
 
     return Array.from(usersMap.values());
+  }
+
+  /**
+   * Fetch a single user's face photo base64 in-memory directly from physical turnstiles (172.25.26.241-248)
+   * without writing to local disk.
+   */
+  async fetchTurnstilePhotoBase64(pin) {
+    if (!pin) return null;
+    const cleanPin = String(pin).trim();
+    const primaryIps = ['172.25.26.241', '172.25.26.248', '172.25.26.242'];
+    for (const ip of primaryIps) {
+      try {
+        const res = await this._digestGet(
+          ip,
+          `/cgi-bin/AccessFace.cgi?action=list&UserIDList[0]=${encodeURIComponent(cleanPin)}`,
+          3500
+        );
+        if (res.status === 200 && res.body) {
+          const m = String(res.body).match(/PhotoData\[0\]=([A-Za-z0-9+/=]+)/);
+          if (m && m[1] && m[1].length > 100) {
+            return m[1];
+          }
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   /**
@@ -1763,7 +1798,7 @@ class TimeWatchIdmsService {
   }
 
   /**
-   * Fetch single user photo on-demand by PIN
+   * Fetch single user photo on-demand by PIN (checks local disk -> direct turnstile AccessFace.cgi -> iDMS UserPhoto.aspx)
    */
   async fetchUserPhotoByPin(pin) {
     if (!pin) return null;
@@ -1772,8 +1807,8 @@ class TimeWatchIdmsService {
     const uploadDir = path.resolve(__dirname, '../../uploads/students');
     const localFile = path.join(uploadDir, `${cleanPin}.jpg`);
 
-    // Check if already on disk
-    if (fs.existsSync(localFile)) {
+    // 1. Check if already on disk
+    if (fs.existsSync(localFile) && fs.statSync(localFile).size > 200) {
       const buf = fs.readFileSync(localFile);
       return {
         buffer: buf,
@@ -1782,32 +1817,66 @@ class TimeWatchIdmsService {
       };
     }
 
-    // Try finding on UserPhoto.aspx
-    await this.login();
-    const initPage = await this._authenticatedGet('/UserPhoto.aspx');
-    const rowRegex = new RegExp(`<tr id="ContentPlaceHolder1_ASPxGridView1_DXDataRow\\d+"[\\s\\S]*?<td[^>]*>[^<]*<\\/td>\\s*<td[^>]*>\\s*${cleanPin}\\s*<\\/td>[\\s\\S]*?<\\/tr>`, 'i');
-    let m = initPage.body.match(rowRegex);
+    // 2. Fetch directly from physical turnstiles (172.25.26.241..248) via Digest CGI AccessFace.cgi
+    const primaryIps = ['172.25.26.241', '172.25.26.248', '172.25.26.242'];
+    for (const ip of primaryIps) {
+      try {
+        const res = await this._digestGet(
+          ip,
+          `/cgi-bin/AccessFace.cgi?action=list&UserIDList[0]=${encodeURIComponent(cleanPin)}`,
+          4000
+        );
+        if (res.status === 200 && res.body) {
+          const m = String(res.body).match(/PhotoData\[0\]=([A-Za-z0-9+/=]+)/);
+          if (m && m[1] && m[1].length > 100) {
+            const buf = Buffer.from(m[1], 'base64');
+            if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+            fs.writeFileSync(localFile, buf);
+            const avatarPath = `/uploads/students/${cleanPin}.jpg`;
+            try {
+              await pool.query(
+                `UPDATE students SET photo_avatar = ?, photo_url = ? WHERE biometric_device_id = ? OR student_id = ?`,
+                [avatarPath, avatarPath, cleanPin, cleanPin]
+              );
+            } catch (_) {}
+            return {
+              buffer: buf,
+              base64: m[1],
+              url: avatarPath
+            };
+          }
+        }
+      } catch (_) {}
+    }
 
-    if (m) {
-      const imgMatch = m[0].match(/src="([^"]+)"/);
-      if (imgMatch) {
-        const buf = await this.downloadImageBuffer(imgMatch[1]);
-        if (buf && buf.length > 500) {
-          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-          fs.writeFileSync(localFile, buf);
-          const avatarPath = `/uploads/students/${cleanPin}.jpg`;
-          await pool.query(
-            `UPDATE students SET photo_avatar = ?, photo_url = ? WHERE biometric_device_id = ? OR student_id = ?`,
-            [avatarPath, avatarPath, cleanPin, `TW-${cleanPin}`]
-          );
-          return {
-            buffer: buf,
-            base64: buf.toString('base64'),
-            url: avatarPath
-          };
+    // 3. Fallback: Try finding on UserPhoto.aspx (if iDMS 9001 is online)
+    try {
+      await this.login();
+      const initPage = await this._authenticatedGet('/UserPhoto.aspx');
+      const rowRegex = new RegExp(`<tr id="ContentPlaceHolder1_ASPxGridView1_DXDataRow\\d+"[\\s\\S]*?<td[^>]*>[^<]*<\\/td>\\s*<td[^>]*>\\s*${cleanPin}\\s*<\\/td>[\\s\\S]*?<\\/tr>`, 'i');
+      let m = initPage.body.match(rowRegex);
+
+      if (m) {
+        const imgMatch = m[0].match(/src="([^"]+)"/);
+        if (imgMatch) {
+          const buf = await this.downloadImageBuffer(imgMatch[1]);
+          if (buf && buf.length > 500) {
+            if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+            fs.writeFileSync(localFile, buf);
+            const avatarPath = `/uploads/students/${cleanPin}.jpg`;
+            await pool.query(
+              `UPDATE students SET photo_avatar = ?, photo_url = ? WHERE biometric_device_id = ? OR student_id = ?`,
+              [avatarPath, avatarPath, cleanPin, `TW-${cleanPin}`]
+            );
+            return {
+              buffer: buf,
+              base64: buf.toString('base64'),
+              url: avatarPath
+            };
+          }
         }
       }
-    }
+    } catch (_) {}
 
     return null;
   }

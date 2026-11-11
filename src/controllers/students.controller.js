@@ -74,7 +74,7 @@ async function getStudents(req, res, next) {
        LEFT JOIN hostels h ON s.hostel_id = h.id
        LEFT JOIN rooms r ON s.room_id = r.id
        ${whereClause}
-       ORDER BY s.student_id ASC
+       ORDER BY CASE WHEN s.first_name IS NOT NULL AND s.first_name != '' AND s.first_name != 'Student' THEN 0 ELSE 1 END, s.student_id ASC
        LIMIT ? OFFSET ?`,
       [...params, parseInt(limit, 10), offset]
     );
@@ -884,7 +884,23 @@ async function getStudentTerminalImage(req, res, next) {
     const fs = require('fs');
     const path = require('path');
 
-    // 1. If student already has a local photo on disk, return it immediately
+    // 1. If student already has a local photo on disk or turnstile CGI (AccessFace.cgi), return it immediately
+    const timewatchIdmsService = require('../services/timewatchIdmsService');
+    const directPhoto = await timewatchIdmsService.fetchUserPhotoByPin(bioId);
+    if (directPhoto && directPhoto.base64) {
+      await pool.query(
+        'UPDATE students SET photo_avatar = ?, photo_url = ? WHERE id = ?',
+        [directPhoto.url, directPhoto.url, student.id]
+      ).catch(() => {});
+      return res.json({
+        success: true,
+        biometricId: bioId,
+        deviceSerial: deviceId || 'TW30000006260161',
+        image: directPhoto.base64,
+        imageUrl: directPhoto.url
+      });
+    }
+
     if (student.photo_avatar) {
       const diskPath = path.resolve(__dirname, '../../', student.photo_avatar.replace(/^\/+/, ''));
       if (fs.existsSync(diskPath)) {
@@ -1142,6 +1158,14 @@ async function importStudentsFromTerminal(req, res, next) {
       let email = (existingStudent?.email && !existingStudent.email.startsWith('tw-'))
         ? existingStudent.email
         : (u.email || `${rollNo.toLowerCase()}@hicet.ac.in`);
+
+      if (u.photoBase64 && typeof u.photoBase64 === 'string' && u.photoBase64.length > 100) {
+        try {
+          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+          const cleanB64 = u.photoBase64.replace(/^data:image\/\w+;base64,/, '');
+          fs.writeFileSync(path.join(uploadDir, `${pin}.jpg`), Buffer.from(cleanB64, 'base64'));
+        } catch (_) {}
+      }
 
       const localPhotoExists = fs.existsSync(path.join(uploadDir, `${pin}.jpg`));
       const defaultPhotoPath = (localPhotoExists || u.hasFace) ? `/uploads/students/${pin}.jpg` : null;
