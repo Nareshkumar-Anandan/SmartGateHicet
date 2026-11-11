@@ -12,7 +12,13 @@ class TimeWatchIdmsService {
     this.serverUrl = process.env.TIMEWATCH_SERVER_URL || 'http://172.25.3.51:9001';
     this.serverUser = process.env.TIMEWATCH_SERVER_USER || 'admin';
     this.serverPassword = process.env.TIMEWATCH_SERVER_PASSWORD || 'admin';
+    this.deviceUser = process.env.TIMEWATCH_DEVICE_USER || 'admin';
+    this.devicePassword = process.env.TIMEWATCH_DEVICE_PASSWORD || 'tipl9910';
     this.deviceType = process.env.TIMEWATCH_DEVICE_TYPE || 'AI Series';
+    this.turnstileIps = [
+      '172.25.26.241', '172.25.26.242', '172.25.26.243', '172.25.26.244',
+      '172.25.26.245', '172.25.26.246', '172.25.26.247', '172.25.26.248'
+    ];
     
     // Parse host and port
     const parsed = new URL(this.serverUrl);
@@ -457,15 +463,135 @@ class TimeWatchIdmsService {
   }
 
   /**
-   * Fetch enrolled biometric users from UserList.aspx
-   * Uses fast server-side Excel export to retrieve all enrolled users across all pages,
-   * with seamless fallback to multi-page HTML table parsing.
+   * Direct HTTP Digest GET to a physical TimeWatch/Dahua turnstile (port 80) using device credentials (admin / tipl9910)
+   */
+  _digestGet(ip, cgiPath, timeoutMs = 4000) {
+    return new Promise((resolve) => {
+      const req1 = http.get({ hostname: ip, port: 80, path: cgiPath, timeout: timeoutMs }, res1 => {
+        const www = res1.headers['www-authenticate'] || '';
+        res1.resume();
+        if (res1.statusCode !== 401 || !www) {
+          return resolve({ status: res1.statusCode, body: '' });
+        }
+        const realm = (www.match(/realm="([^"]+)"/) || [])[1] || '';
+        const nonce = (www.match(/nonce="([^"]+)"/) || [])[1] || '';
+        const qop = (www.match(/qop="?([^",]+)"?/) || [])[1] || 'auth';
+        const opaque = (www.match(/opaque="([^"]+)"/) || [])[1] || '';
+        const nc = '00000001';
+        const cnonce = crypto.randomBytes(4).toString('hex');
+        const md5 = str => crypto.createHash('md5').update(str).digest('hex');
+        const ha1 = md5(`${this.deviceUser}:${realm}:${this.devicePassword}`);
+        const ha2 = md5(`GET:${cgiPath}`);
+        const resp = md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`);
+        const auth = `Digest username="${this.deviceUser}", realm="${realm}", nonce="${nonce}", uri="${cgiPath}", qop=${qop}, nc=${nc}, cnonce="${cnonce}", response="${resp}"${opaque ? `, opaque="${opaque}"` : ''}`;
+
+        const req2 = http.get({ hostname: ip, port: 80, path: cgiPath, headers: { Authorization: auth }, timeout: timeoutMs }, res2 => {
+          let body = '';
+          res2.on('data', c => body += c);
+          res2.on('end', () => resolve({ status: res2.statusCode, body }));
+        });
+        req2.on('error', e => resolve({ status: 0, error: e.message }));
+        req2.on('timeout', () => { req2.destroy(); resolve({ status: 0, error: 'timeout' }); });
+      });
+      req1.on('error', e => resolve({ status: 0, error: e.message }));
+      req1.on('timeout', () => { req1.destroy(); resolve({ status: 0, error: 'timeout' }); });
+    });
+  }
+
+  /**
+   * Fetch all enrolled users directly from the physical turnstiles (172.25.26.241-248) via Digest CGI
+   * Works even when the local TimeWatch iDMS server (172.25.3.51:9001) is offline.
+   */
+  async getDirectTurnstileUsers() {
+    const usersMap = new Map();
+    const ipToSn = {
+      '172.25.26.241': 'TW30000006260161',
+      '172.25.26.242': 'TW30000006260175',
+      '172.25.26.243': 'TW30000006260156',
+      '172.25.26.244': 'TW30000006260127',
+      '172.25.26.245': 'TW30000006260207',
+      '172.25.26.246': 'TW30000006260242',
+      '172.25.26.247': 'TW30000006260265',
+      '172.25.26.248': 'TW30000006260256'
+    };
+
+    // Query primary turnstiles in parallel (241 and 248 hold the full superset of 950 users)
+    const primaryIps = ['172.25.26.241', '172.25.26.248', '172.25.26.242'];
+    for (const ip of primaryIps) {
+      const sn = ipToSn[ip] || ip;
+      for (let offset = 0; offset < 2500; offset += 100) {
+        const res = await this._digestGet(
+          ip,
+          `/cgi-bin/recordFinder.cgi?action=doSeekFind&name=AccessControlCard&offset=${offset}&count=100`
+        );
+        if (res.status !== 200 || !res.body) break;
+        const foundMatch = res.body.match(/found=(\d+)/);
+        const found = foundMatch ? parseInt(foundMatch[1], 10) : 0;
+        if (found === 0) break;
+
+        const recs = {};
+        for (const line of res.body.split(/\r?\n/)) {
+          const m = line.match(/^records\[(\d+)\]\.(\w+)=(.*)$/);
+          if (m) {
+            if (!recs[m[1]]) recs[m[1]] = {};
+            recs[m[1]][m[2]] = m[3].trim();
+          }
+        }
+
+        for (const rec of Object.values(recs)) {
+          const uid = String(rec.UserID || '').trim();
+          if (!uid || uid === 'ALL') continue;
+          let rawName = String(rec.CardName || '').trim();
+          if (rawName === uid || /^\d+$/.test(rawName)) rawName = '';
+          const card = rec.CardNo ? String(rec.CardNo).trim() : null;
+
+          if (!usersMap.has(uid)) {
+            usersMap.set(uid, {
+              serialNumber: sn,
+              model: 'TrueFace3000',
+              userId: uid,
+              name: rawName,
+              card: card || null,
+              hasFace: true,
+              devices: [sn]
+            });
+          } else {
+            const cur = usersMap.get(uid);
+            if (!cur.name && rawName) cur.name = rawName;
+            if (!cur.card && card) cur.card = card;
+            if (!cur.devices.includes(sn)) cur.devices.push(sn);
+          }
+        }
+
+        if (found < 100) break;
+      }
+      if (usersMap.size >= 900) break; // Already retrieved full turnstile user list
+    }
+
+    return Array.from(usersMap.values());
+  }
+
+  /**
+   * Fetch enrolled biometric users directly from physical turnstiles (with iDMS UserList.aspx merge/fallback)
    */
   async getEnrolledUsers() {
-    await this.login();
-
-    // 1. Try Excel export first (contains ALL enrolled users across all 56+ pages in 1 request)
+    // 1. Direct hardware pull from physical turnstiles (172.25.26.241-248 using admin / tipl9910)
+    const mergedMap = new Map();
     try {
+      const directUsers = await this.getDirectTurnstileUsers();
+      for (const u of directUsers) {
+        mergedMap.set(String(u.userId).trim(), u);
+      }
+      if (directUsers.length > 0) {
+        console.log(`[TURNSTILE DIRECT CGI] Pulled ${directUsers.length} enrolled users directly from turnstile hardware.`);
+      }
+    } catch (directErr) {
+      console.warn('[TURNSTILE DIRECT CGI WARN]', directErr.message);
+    }
+
+    // 2. Also merge with TimeWatch iDMS server (UserList.aspx) if reachable
+    try {
+      await this.login();
       const initPage = await this._authenticatedGet('/UserList.aspx');
       const postParams = this._extractAllFormInputs(initPage.body);
       postParams.append('ctl00$ContentPlaceHolder1$ASPxButton2', 'Export');
@@ -480,7 +606,6 @@ class TimeWatchIdmsService {
         const rawRows = xlsx.utils.sheet_to_json(sheet);
 
         if (rawRows && rawRows.length > 0) {
-          const usersMap = new Map();
           for (const row of rawRows) {
             const uid = String(row['User ID'] || '').trim();
             if (!uid || uid === 'ALL') continue;
@@ -495,8 +620,8 @@ class TimeWatchIdmsService {
               rawName = '';
             }
 
-            if (!usersMap.has(uid)) {
-              usersMap.set(uid, {
+            if (!mergedMap.has(uid)) {
+              mergedMap.set(uid, {
                 serialNumber: sn,
                 model,
                 userId: uid,
@@ -506,21 +631,24 @@ class TimeWatchIdmsService {
                 devices: sn ? [sn] : []
               });
             } else {
-              const u = usersMap.get(uid);
+              const u = mergedMap.get(uid);
               if (!u.name && rawName) u.name = rawName;
               if (!u.card && card) u.card = card;
               if (hasFace) u.hasFace = true;
               if (sn && !u.devices.includes(sn)) u.devices.push(sn);
             }
           }
-
-          const userList = Array.from(usersMap.values());
-          console.log(`[TIMEWATCH IDMS] Successfully exported and parsed ${userList.length} unique enrolled users (${rawRows.length} device records) from TimeWatch server.`);
-          return userList;
         }
       }
     } catch (exportErr) {
+      if (mergedMap.size > 0) {
+        return Array.from(mergedMap.values());
+      }
       console.warn('[TIMEWATCH IDMS WARN] Excel export failed, falling back to HTML parsing:', exportErr.message);
+    }
+
+    if (mergedMap.size > 0) {
+      return Array.from(mergedMap.values());
     }
 
     // 2. Fallback to HTML table parsing (page 1)
@@ -1060,6 +1188,20 @@ class TimeWatchIdmsService {
       );
     }
 
+    // 1b. Direct hardware CGI push to all 8 turnstile IPs (172.25.26.241-248) using admin / tipl9910
+    try {
+      const encName = encodeURIComponent(userName);
+      const encPin = encodeURIComponent(userPin);
+      const encCard = encodeURIComponent(cardNumber || userPin);
+      await Promise.all(this.turnstileIps.map(ip =>
+        this._digestGet(
+          ip,
+          `/cgi-bin/recordUpdater.cgi?action=insert&name=AccessControlCard&CardName=${encName}&CardNo=${encCard}&UserID=${encPin}&CardStatus=0&CardType=0&UserType=0&ValidDateStart=20200101%20000000&ValidDateEnd=20351231%20235959`,
+          2500
+        ).catch(() => {})
+      ));
+    } catch (_) {}
+
     // 2. Ensure employee record exists and upload basic user details via iDMS Employee.aspx
     let employeeResult = null;
     try {
@@ -1347,6 +1489,20 @@ class TimeWatchIdmsService {
    */
   async deleteStudentFromTurnstiles({ pin, name }) {
     console.log(`[TIMEWATCH HARDWARE DELETE] Deleting student ${name} (PIN: ${pin}) from TimeWatch and turnstiles...`);
+    const targetPin = String(pin).trim();
+
+    // 1. Direct hardware CGI delete across all 8 turnstile IPs (172.25.26.241-248) using admin / tipl9910
+    try {
+      const encPin = encodeURIComponent(targetPin);
+      await Promise.all(this.turnstileIps.map(ip =>
+        this._digestGet(
+          ip,
+          `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encPin}`,
+          2500
+        ).catch(() => {})
+      ));
+    } catch (_) {}
+
     try {
       return await this._withBrowser(async (page) => {
         page.on('dialog', async d => {
