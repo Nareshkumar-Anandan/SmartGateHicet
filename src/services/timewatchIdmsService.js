@@ -619,6 +619,7 @@ class TimeWatchIdmsService {
       }
       if (directUsers.length > 0) {
         console.log(`[TURNSTILE DIRECT CGI] Pulled ${directUsers.length} enrolled users directly from turnstile hardware.`);
+        return directUsers;
       }
     } catch (directErr) {
       console.warn('[TURNSTILE DIRECT CGI WARN]', directErr.message);
