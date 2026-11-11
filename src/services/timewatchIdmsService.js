@@ -499,6 +499,115 @@ class TimeWatchIdmsService {
   }
 
   /**
+   * Direct HTTP Digest POST (JSON) to a physical TimeWatch/Dahua turnstile (port 80) using device credentials (admin / tipl9910)
+   */
+  _digestPost(ip, cgiPath, jsonBody, timeoutMs = 6000) {
+    return new Promise((resolve) => {
+      const bodyStr = typeof jsonBody === 'string' ? jsonBody : JSON.stringify(jsonBody);
+      const req1 = http.request({ hostname: ip, port: 80, path: cgiPath, method: 'POST', timeout: timeoutMs }, res1 => {
+        const www = res1.headers['www-authenticate'] || '';
+        res1.resume();
+        if (res1.statusCode !== 401 || !www) {
+          return resolve({ status: res1.statusCode, body: '' });
+        }
+        const realm = (www.match(/realm="([^"]+)"/) || [])[1] || '';
+        const nonce = (www.match(/nonce="([^"]+)"/) || [])[1] || '';
+        const qop = (www.match(/qop="?([^",]+)"?/) || [])[1] || 'auth';
+        const opaque = (www.match(/opaque="([^"]+)"/) || [])[1] || '';
+        const nc = '00000001';
+        const cnonce = crypto.randomBytes(4).toString('hex');
+        const md5 = str => crypto.createHash('md5').update(str).digest('hex');
+        const ha1 = md5(`${this.deviceUser}:${realm}:${this.devicePassword}`);
+        const ha2 = md5(`POST:${cgiPath}`);
+        const resp = md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`);
+        const auth = `Digest username="${this.deviceUser}", realm="${realm}", nonce="${nonce}", uri="${cgiPath}", qop=${qop}, nc=${nc}, cnonce="${cnonce}", response="${resp}"${opaque ? `, opaque="${opaque}"` : ''}`;
+
+        const req2 = http.request({
+          hostname: ip,
+          port: 80,
+          path: cgiPath,
+          method: 'POST',
+          headers: {
+            Authorization: auth,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(bodyStr)
+          },
+          timeout: timeoutMs
+        }, res2 => {
+          let body = '';
+          res2.on('data', c => body += c);
+          res2.on('end', () => resolve({ status: res2.statusCode, body }));
+        });
+        req2.on('error', e => resolve({ status: 0, error: e.message }));
+        req2.on('timeout', () => { req2.destroy(); resolve({ status: 0, error: 'timeout' }); });
+        req2.write(bodyStr);
+        req2.end();
+      });
+      req1.on('error', e => resolve({ status: 0, error: e.message }));
+      req1.on('timeout', () => { req1.destroy(); resolve({ status: 0, error: 'timeout' }); });
+      req1.end();
+    });
+  }
+
+  /**
+   * Directly update or insert a student's name, card, and face photo across all 8 physical turnstiles (172.25.26.241-248)
+   */
+  async pushDirectToTurnstileHardware({ pin, name, cardNumber = '', photoBase64 = '' }) {
+    const userPin = String(pin || '').trim();
+    if (!userPin) return { success: false, message: 'Missing PIN' };
+    const userName = String(name || `Student ${userPin}`).trim();
+    const encName = encodeURIComponent(userName);
+    const encPin = encodeURIComponent(userPin);
+    const encCard = encodeURIComponent(cardNumber || '');
+    const cleanB64 = photoBase64 ? String(photoBase64).replace(/^data:image\/\w+;base64,/, '') : '';
+
+    let updatedLanes = 0;
+    await Promise.all(this.turnstileIps.map(async (ip) => {
+      try {
+        // 1. Check if UserID already exists in AccessControlCard to get its RecNo
+        const findRes = await this._digestGet(
+          ip,
+          `/cgi-bin/recordFinder.cgi?action=doSeekFind&name=AccessControlCard&offset=0&count=1&condition.UserID=${encPin}`,
+          3500
+        );
+        const recNoMatch = String(findRes.body || '').match(/records\[0\]\.RecNo=(\d+)/);
+        let userOk = false;
+
+        if (recNoMatch && recNoMatch[1]) {
+          const recNo = recNoMatch[1];
+          const updPath = `/cgi-bin/recordUpdater.cgi?action=update&name=AccessControlCard&recno=${recNo}&CardName=${encName}${encCard ? `&CardNo=${encCard}` : ''}`;
+          const updRes = await this._digestGet(ip, updPath, 3500);
+          userOk = updRes.status === 200;
+        } else {
+          const insCard = encodeURIComponent(cardNumber || userPin);
+          const insPath = `/cgi-bin/recordUpdater.cgi?action=insert&name=AccessControlCard&CardName=${encName}&CardNo=${insCard}&UserID=${encPin}&CardStatus=0&CardType=0&UserType=0&ValidDateStart=20200101%20000000&ValidDateEnd=20351231%20235959`;
+          const insRes = await this._digestGet(ip, insPath, 3500);
+          userOk = insRes.status === 200;
+        }
+
+        // 2. If photoBase64 is provided, update/insert face photo via AccessFace.cgi
+        if (cleanB64 && cleanB64.length > 100) {
+          const facePayload = { FaceList: [{ UserID: userPin, PhotoData: [cleanB64] }] };
+          const fUpd = await this._digestPost(ip, '/cgi-bin/AccessFace.cgi?action=updateMulti', facePayload, 5000);
+          if (fUpd.status !== 200 || String(fUpd.body).includes('Error')) {
+            await this._digestPost(ip, '/cgi-bin/AccessFace.cgi?action=insertMulti', facePayload, 5000);
+          }
+        }
+
+        if (userOk) updatedLanes++;
+      } catch (_) {}
+    }));
+
+    return {
+      success: updatedLanes > 0,
+      updatedLanes,
+      totalLanes: this.turnstileIps.length,
+      pin: userPin,
+      name: userName
+    };
+  }
+
+  /**
    * Fetch all enrolled users directly from the physical turnstiles (172.25.26.241-248) via Digest CGI
    * Works even when the local TimeWatch iDMS server (172.25.3.51:9001) is offline.
    */
@@ -1226,16 +1335,12 @@ class TimeWatchIdmsService {
 
     // 1b. Direct hardware CGI push to all 8 turnstile IPs (172.25.26.241-248) using admin / tipl9910
     try {
-      const encName = encodeURIComponent(userName);
-      const encPin = encodeURIComponent(userPin);
-      const encCard = encodeURIComponent(cardNumber || userPin);
-      await Promise.all(this.turnstileIps.map(ip =>
-        this._digestGet(
-          ip,
-          `/cgi-bin/recordUpdater.cgi?action=insert&name=AccessControlCard&CardName=${encName}&CardNo=${encCard}&UserID=${encPin}&CardStatus=0&CardType=0&UserType=0&ValidDateStart=20200101%20000000&ValidDateEnd=20351231%20235959`,
-          2500
-        ).catch(() => {})
-      ));
+      await this.pushDirectToTurnstileHardware({
+        pin: userPin,
+        name: userName,
+        cardNumber: cardNumber || '',
+        photoBase64: photoBase64 || ''
+      });
     } catch (_) {}
 
     // 2. Ensure employee record exists and upload basic user details via iDMS Employee.aspx

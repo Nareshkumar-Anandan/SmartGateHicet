@@ -446,7 +446,17 @@ async function updateStudent(req, res, next) {
       room_id,
       biometric_device_id,
       card_number,
-      current_location_status
+      current_location_status,
+      institution,
+      gender,
+      dob,
+      guardian_name,
+      district,
+      address,
+      pincode,
+      aadhar_number,
+      photo_avatar,
+      photo_url
     } = req.body;
 
     const [[existing]] = await pool.query('SELECT * FROM students WHERE id = ?', [id]);
@@ -469,12 +479,51 @@ async function updateStudent(req, res, next) {
       }
     }
 
+    // Handle photo_avatar / photo_url update if base64 image is provided
+    let finalPhotoAvatar = existing.photo_avatar;
+    let finalPhotoUrl = existing.photo_url;
+    let uploadedPhotoBase64 = '';
+    const incomingPhoto = photo_avatar || photo_url;
+
+    if (incomingPhoto && typeof incomingPhoto === 'string') {
+      if (incomingPhoto.startsWith('data:image')) {
+        try {
+          const sharp = require('sharp');
+          const fs = require('fs');
+          const path = require('path');
+          const base64Data = incomingPhoto.replace(/^data:image\/\w+;base64,/, '');
+          const buf = Buffer.from(base64Data, 'base64');
+          const optBuf = await sharp(buf)
+            .rotate()
+            .resize(352, 432, { fit: 'cover' })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+          uploadedPhotoBase64 = optBuf.toString('base64');
+          const uploadsDir = path.resolve(__dirname, '../../uploads/students');
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          const cleanId = String(existing.student_id).trim();
+          const filePath = path.join(uploadsDir, `${cleanId}.jpg`);
+          fs.writeFileSync(filePath, optBuf);
+          finalPhotoAvatar = `/uploads/students/${cleanId}.jpg`;
+          finalPhotoUrl = `/uploads/students/${cleanId}.jpg`;
+        } catch (photoErr) {
+          console.warn('[UPDATE STUDENT PHOTO WARN]', photoErr.message);
+        }
+      } else {
+        finalPhotoAvatar = incomingPhoto;
+        finalPhotoUrl = incomingPhoto;
+      }
+    }
+
     await withTransaction(async (conn) => {
       await conn.query(
         `UPDATE students 
          SET first_name = ?, last_name = ?, department = ?, course = ?, year_of_study = ?,
              phone = ?, parent_phone = ?, email = ?, hostel_id = ?, room_id = ?,
-             biometric_device_id = ?, card_number = ?, current_location_status = ?, updated_at = NOW()
+             biometric_device_id = ?, card_number = ?, current_location_status = ?,
+             institution = ?, gender = ?, dob = ?, guardian_name = ?,
+             district = ?, address = ?, pincode = ?, aadhar_number = ?,
+             photo_avatar = ?, photo_url = ?, updated_at = NOW()
          WHERE id = ?`,
         [
           first_name !== undefined ? first_name : existing.first_name,
@@ -490,6 +539,16 @@ async function updateStudent(req, res, next) {
           biometric_device_id !== undefined ? biometric_device_id : existing.biometric_device_id,
           card_number !== undefined ? card_number : existing.card_number,
           current_location_status !== undefined ? current_location_status : existing.current_location_status,
+          institution !== undefined ? institution : existing.institution,
+          gender !== undefined ? gender : existing.gender,
+          dob !== undefined ? (dob || null) : existing.dob,
+          guardian_name !== undefined ? guardian_name : existing.guardian_name,
+          district !== undefined ? district : existing.district,
+          address !== undefined ? address : existing.address,
+          pincode !== undefined ? pincode : existing.pincode,
+          aadhar_number !== undefined ? aadhar_number : existing.aadhar_number,
+          finalPhotoAvatar,
+          finalPhotoUrl,
           id
         ]
       );
@@ -526,36 +585,62 @@ async function updateStudent(req, res, next) {
       ipAddress: req.ip
     });
 
-    // 2-Way Hardware Sync: Automatically push updated student details directly to TimeWatch device(s)
+    // 2-Way Hardware Sync: Automatically push updated student details & photo directly to TimeWatch turnstiles
     try {
       const timewatchApiService = require('../services/timewatchApiService');
       const admsService = require('../services/admsService');
+      const timewatchIdmsService = require('../services/timewatchIdmsService');
       const [devices] = await pool.query('SELECT * FROM gate_devices');
 
       const targetBioId = biometric_device_id !== undefined ? biometric_device_id : existing.biometric_device_id;
-      const targetName = `${first_name !== undefined ? first_name : existing.first_name} ${last_name !== undefined ? last_name : existing.last_name}`;
+      const targetName = `${first_name !== undefined ? first_name : existing.first_name} ${last_name !== undefined ? last_name : existing.last_name}`.trim();
       const targetCard = card_number !== undefined ? card_number : existing.card_number;
 
       if (targetBioId) {
         for (const dev of devices) {
           timewatchApiService.addUser({
             UserID: targetBioId,
-            Name: targetName.trim(),
+            Name: targetName,
             DeviceID: dev.serial_number,
-            Card: targetCard ? targetCard.trim() : ''
+            Card: targetCard ? targetCard.trim() : '',
+            FaceTemplate: uploadedPhotoBase64 || ''
           }).catch(err => console.warn(`[AUTO-SYNC UPDATE TWAPI WARN] ${dev.serial_number}:`, err.message));
 
           admsService.queueCommand(
             dev.serial_number,
-            `DATA UPDATE USER PIN=${targetBioId}\tName=${targetName.trim()}\tCard=${targetCard ? targetCard.trim() : ''}\tPri=0\tGrp=1`
+            `DATA UPDATE USER PIN=${targetBioId}\tName=${targetName}\tCard=${targetCard ? targetCard.trim() : ''}\tPri=0\tGrp=1`
           );
+
+          if (uploadedPhotoBase64) {
+            const photoLen = Buffer.from(uploadedPhotoBase64, 'base64').length;
+            admsService.queueCommand(
+              dev.serial_number,
+              `DATA UPDATE USERPHOTO PIN=${targetBioId}\tFileName=${targetBioId}.jpg\tSize=${photoLen}\tContent=${uploadedPhotoBase64}`
+            );
+            admsService.queueCommand(
+              dev.serial_number,
+              `DATA UPDATE BIOPHOTO PIN=${targetBioId}\tType=9\tSize=${photoLen}\tContent=${uploadedPhotoBase64}`
+            );
+          }
         }
+
+        timewatchIdmsService.pushDirectToTurnstileHardware({
+          pin: targetBioId,
+          name: targetName,
+          cardNumber: targetCard ? targetCard.trim() : '',
+          photoBase64: uploadedPhotoBase64
+        }).catch(() => {});
       }
     } catch (syncErr) {
       console.warn('[AUTO-SYNC UPDATE WARN]', syncErr.message);
     }
 
-    return res.json({ success: true, message: 'Student details updated successfully and synced to TimeWatch terminals.' });
+    return res.json({
+      success: true,
+      message: 'Student details and photo updated and pushed to all turnstile machines.',
+      photo_avatar: finalPhotoAvatar,
+      photo_url: finalPhotoUrl
+    });
   } catch (error) {
     next(error);
   }
